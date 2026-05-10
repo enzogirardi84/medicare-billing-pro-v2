@@ -1,14 +1,23 @@
-"""Capa de persistencia con SQLAlchemy + SQLite."""
+"""Capa de persistencia con SQLAlchemy.
+Soporta PostgreSQL (Supabase) como principal y SQLite como fallback.
+El microservicio es totalmente independiente de Medicare Pro.
+"""
 from __future__ import annotations
 
-import json
+import logging
+import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from pathlib import Path
 
-from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text, select, delete, update
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
+logger = logging.getLogger("billing_pro")
+
+# Cargar .env propio del microservicio
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 Base = declarative_base()
 
@@ -96,8 +105,37 @@ class EstadoPagoModel(Base):
     updated_at = Column(String, default="")
 
 
-# ── Engine ──────────────────────────────────────────────────
-ENGINE = create_engine("sqlite:///./billing_pro.db", connect_args={"check_same_thread": False})
+# ── Seleccion de motor: PostgreSQL > SQLite ──────────────────
+def _crear_engine():
+    db_url = os.getenv("DATABASE_URL", "").strip()
+    if db_url:
+        try:
+            # Supabase connection pooling via PgBouncer requiere connect_args especificos
+            engine = create_engine(
+                db_url,
+                pool_pre_ping=True,
+                pool_size=5,
+                max_overflow=10,
+                connect_args={"connect_timeout": 10},
+            )
+            # Test conexion
+            with engine.connect() as conn:
+                conn.execute("SELECT 1")
+            logger.info("Conectado a PostgreSQL (Supabase)")
+            return engine
+        except Exception as exc:
+            logger.warning(f"PostgreSQL no disponible ({exc}), usando SQLite fallback")
+    # Fallback SQLite
+    sqlite_path = os.getenv("SQLITE_PATH", "./billing_pro.db")
+    engine = create_engine(
+        f"sqlite:///{sqlite_path}",
+        connect_args={"check_same_thread": False},
+    )
+    logger.info(f"Usando SQLite: {sqlite_path}")
+    return engine
+
+
+ENGINE = _crear_engine()
 Base.metadata.create_all(ENGINE)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=ENGINE)
 

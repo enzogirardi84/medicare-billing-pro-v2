@@ -1,8 +1,9 @@
-"""Configuración de ARCA (ex-AFIP) — certificados, credenciales y entorno."""
+"""Configuracion de ARCA (ex-AFIP) — certificados, credenciales y entorno.
+Microservicio 100% independiente. Lee solo de .env propio.
+"""
 from __future__ import annotations
 
 import os
-import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -11,18 +12,6 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _cargar_secrets_medicare(nombre: str) -> str:
-    """Carga secretos compartidos desde Medicare Pro (solo lectura)."""
-    shared = Path(r"C:\programa de salud optimizado\.streamlit\secrets.toml")
-    try:
-        if shared.exists():
-            data = tomllib.loads(shared.read_text(encoding="utf-8-sig"))
-            return str(data.get(nombre, "") or "")
-    except Exception:
-        pass
-    return ""
 
 
 @dataclass
@@ -43,11 +32,7 @@ def cargar_configuracion_arca() -> ArcaConfig:
         "1", "true", "yes", "si", "sí",
     }
 
-    cfg.cuit = (
-        os.getenv("ARCA_CUIT", "")
-        or _cargar_secrets_medicare("ARCA_CUIT")
-        or "00000000000"
-    )
+    cfg.cuit = os.getenv("ARCA_CUIT", "") or "00000000000"
 
     cert_env = os.getenv("ARCA_CERT_PATH", "")
     if cert_env:
