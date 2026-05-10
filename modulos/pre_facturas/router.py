@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -133,8 +133,62 @@ async def eliminar_prefactura(prefactura_id: str, db: Session = Depends(get_db))
     db.delete(p)
     db.commit()
 
+def _procesar_cae_background(prefactura_id: str):
+    """Tarea en background para procesar CAE con nueva sesion de DB."""
+    import logging
+    from db.database import SessionLocal, ClienteModel
+    logger = logging.getLogger("billing_pro")
+    db = SessionLocal()
+    try:
+        p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id).first()
+        if not p:
+            logger.warning(f"Prefactura {prefactura_id} no encontrada para CAE background")
+            return
+        cfg = cargar_configuracion_arca()
+        cliente_db = db.query(ClienteModel).filter(ClienteModel.id == p.cliente_id).first()
+        cliente = {
+            "nombre": p.cliente_nombre,
+            "cuit": cliente_db.cuit if cliente_db else "",
+            "dni": cliente_db.dni if cliente_db else "",
+            "condicion_iva": cliente_db.condicion_iva if cliente_db else "Consumidor Final",
+        }
+        items = json.loads(p.items_json) if p.items_json else []
+        prefactura = {"id": p.id, "items": items}
+
+        resultado = None
+        try:
+            if cfg.cert_path.exists() and cfg.key_path.exists() and cfg.cuit and cfg.cuit != "00000000000":
+                resultado = solicitar_cae(cfg, prefactura, cliente)
+                if resultado.get("cae"):
+                    p.cae = resultado["cae"]
+                    p.cae_vencimiento = resultado.get("cae_vencimiento", "")
+                    p.numero_factura = resultado.get("numero_factura", "")
+                    p.estado = "Aprobada"
+                    logger.info(f"CAE real obtenido para {prefactura_id}: {p.numero_factura}")
+                else:
+                    p.estado = "Rechazada_ARCA"
+                    logger.warning(f"ARCA rechazo CAE para {prefactura_id}: {resultado.get('observaciones')}")
+            else:
+                raise RuntimeError("Certificados ARCA no configurados")
+        except Exception as exc:
+            logger.warning(f"ARCA real fallo ({exc}), usando stub para {prefactura_id}")
+            resultado = solicitar_cae_stub(cfg, prefactura, cliente)
+            if resultado.get("cae"):
+                p.cae = resultado["cae"]
+                p.cae_vencimiento = resultado.get("cae_vencimiento", "")
+                p.numero_factura = resultado.get("numero_factura", "")
+                p.estado = "Aprobada"
+            else:
+                p.estado = "Rechazada_ARCA"
+
+        p.updated_at = _ahora()
+        db.commit()
+    finally:
+        db.close()
+
+
 @router.post("/{prefactura_id}/solicitar-cae", response_model=dict)
-async def endpoint_solicitar_cae(prefactura_id: str, db: Session = Depends(get_db)):
+async def endpoint_solicitar_cae(prefactura_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id).first()
     if not p:
         raise HTTPException(404, "Pre-factura no encontrada")
@@ -143,53 +197,15 @@ async def endpoint_solicitar_cae(prefactura_id: str, db: Session = Depends(get_d
     p.estado = "Enviada_ARCA"
     p.updated_at = _ahora()
     db.commit()
-    cfg = cargar_configuracion_arca()
 
-    # Buscar datos del cliente para el CUIT/DNI
-    from db.database import ClienteModel
-    cliente_db = db.query(ClienteModel).filter(ClienteModel.id == p.cliente_id).first()
-    cliente = {
-        "nombre": p.cliente_nombre,
-        "cuit": cliente_db.cuit if cliente_db else "",
-        "dni": cliente_db.dni if cliente_db else "",
-        "condicion_iva": cliente_db.condicion_iva if cliente_db else "Consumidor Final",
-    }
-    items = json.loads(p.items_json) if p.items_json else []
-    prefactura = {"id": p.id, "items": items}
+    # Ejecutar CAE en background para no bloquear el request
+    background_tasks.add_task(_procesar_cae_background, prefactura_id)
 
-    # Intentar integracion real; si falla o faltan certificados, fallback a stub
-    resultado = None
-    try:
-        if cfg.cert_path.exists() and cfg.key_path.exists() and cfg.cuit and cfg.cuit != "00000000000":
-            resultado = solicitar_cae(cfg, prefactura, cliente)
-            if resultado.get("cae"):
-                p.cae = resultado["cae"]
-                p.cae_vencimiento = resultado.get("cae_vencimiento", "")
-                p.numero_factura = resultado.get("numero_factura", "")
-                p.estado = "Aprobada"
-            else:
-                p.estado = "Rechazada_ARCA"
-        else:
-            raise RuntimeError("Certificados ARCA no configurados")
-    except Exception as exc:
-        import logging
-        logging.getLogger("billing_pro").warning(f"ARCA real fallo ({exc}), usando stub")
-        resultado = solicitar_cae_stub(cfg, prefactura, cliente)
-        if resultado.get("cae"):
-            p.cae = resultado["cae"]
-            p.cae_vencimiento = resultado.get("cae_vencimiento", "")
-            p.numero_factura = resultado.get("numero_factura", "")
-            p.estado = "Aprobada"
-        else:
-            p.estado = "Rechazada_ARCA"
-
-    p.updated_at = _ahora()
-    db.commit()
     return {
-        "mensaje": "CAE procesado",
+        "mensaje": "Solicitud de CAE en proceso",
         "prefactura_id": prefactura_id,
-        "estado": p.estado,
+        "estado": "Enviada_ARCA",
         "cae": p.cae,
         "numero_factura": p.numero_factura,
-        "modo": "real" if (cfg.cert_path.exists() and cfg.cuit != "00000000000") else "stub",
+        "nota": "El CAE se procesa de forma asincronica. Consulte el estado en GET /api/prefacturas/{id}",
     }

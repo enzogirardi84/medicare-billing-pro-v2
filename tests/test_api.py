@@ -21,7 +21,6 @@ def test_crud_clientes():
     # create
     r = client.post("/api/clientes/", json={
         "nombre": "Clinica Test",
-        "cuit": "30-12345678-9",
         "condicion_iva": "Responsable Inscripto",
         "empresa_id": "default",
     }, headers=HEADERS)
@@ -84,6 +83,11 @@ def test_prefactura_solicitar_cae():
     fid = r.json()["id"]
 
     r = client.post(f"/api/prefacturas/{fid}/solicitar-cae", headers=HEADERS)
+    assert r.status_code == 200
+    assert r.json()["estado"] == "Enviada_ARCA"
+
+    # BackgroundTasks en TestClient se ejecutan sincronamente; verificar con GET
+    r = client.get(f"/api/prefacturas/{fid}", headers=HEADERS)
     assert r.status_code == 200
     assert r.json()["estado"] == "Aprobada"
     assert r.json()["cae"] != ""

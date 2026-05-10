@@ -10,6 +10,9 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from config.arca_config import cargar_configuracion_arca, ArcaConfig
 from auth.api_key import verificar_api_key
@@ -28,6 +31,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("billing_pro")
 
 arca_config: ArcaConfig | None = None
+limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
@@ -49,6 +53,8 @@ app = FastAPI(
     description="Microservicio de facturacion electronica ARCA para profesionales de la salud.",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,7 +75,8 @@ app.include_router(reportes_router, prefix="/api/reportes", tags=["Reportes Cont
 
 # ── Health & Info ───────────────────────────────────────────
 @app.get("/api/health", tags=["Sistema"])
-async def health_check():
+@limiter.limit("10/minute")
+async def health_check(request: Request):
     return {
         "status": "ok",
         "servicio": "Medicare Billing Pro",
@@ -80,7 +87,8 @@ async def health_check():
 
 
 @app.get("/api/arca/status", tags=["ARCA"])
-async def arca_status():
+@limiter.limit("10/minute")
+async def arca_status(request: Request):
     if not arca_config:
         return JSONResponse({"error": "Configuracion ARCA no cargada"}, 503)
     return {
@@ -93,15 +101,30 @@ async def arca_status():
 
 
 @app.get("/api/arca/servicios", tags=["ARCA"])
-async def arca_servicios():
+@limiter.limit("10/minute")
+async def arca_servicios(request: Request):
     if not arca_config:
         return JSONResponse({"error": "Configuracion ARCA no cargada"}, 503)
     return consultar_estado_servicios_stub(arca_config)
 
 
+# ── Métricas ────────────────────────────────────────────────
+@app.get("/api/metrics", tags=["Sistema"])
+@limiter.limit("10/minute")
+async def metrics(request: Request, db=Depends(get_db)):
+    return {
+        "clientes": db.query(ClienteModel).count(),
+        "presupuestos": db.query(PresupuestoModel).count(),
+        "prefacturas": db.query(PrefacturaModel).count(),
+        "cobros": db.query(CobroModel).count(),
+        "estados_pago": db.query(EstadoPagoModel).count(),
+    }
+
+
 # ── Exportaciones ───────────────────────────────────────────
 @app.get("/api/exportar/clientes/excel", tags=["Exportacion"])
-async def exportar_clientes_xlsx(empresa_id: str = "default", db=Depends(get_db)):
+@limiter.limit("5/minute")
+async def exportar_clientes_xlsx(request: Request, empresa_id: str = "default", db=Depends(get_db)):
     rows = db.query(ClienteModel).filter(ClienteModel.empresa_id == empresa_id).all()
     data = [{"nombre": c.nombre, "cuit": c.cuit, "condicion_iva": c.condicion_iva, "email": c.email} for c in rows]
     buf = exportar_clientes_excel(data)
@@ -109,7 +132,8 @@ async def exportar_clientes_xlsx(empresa_id: str = "default", db=Depends(get_db)
 
 
 @app.get("/api/exportar/cobros/excel", tags=["Exportacion"])
-async def exportar_cobros_xlsx(empresa_id: str = "default", db=Depends(get_db)):
+@limiter.limit("5/minute")
+async def exportar_cobros_xlsx(request: Request, empresa_id: str = "default", db=Depends(get_db)):
     rows = db.query(CobroModel).filter(CobroModel.empresa_id == empresa_id).all()
     data = [{"fecha": c.fecha, "cliente_nombre": c.cliente_nombre, "monto": c.monto, "metodo_pago": c.metodo_pago} for c in rows]
     buf = exportar_cobros_excel(data)
@@ -117,7 +141,8 @@ async def exportar_cobros_xlsx(empresa_id: str = "default", db=Depends(get_db)):
 
 
 @app.get("/api/exportar/presupuestos/excel", tags=["Exportacion"])
-async def exportar_presupuestos_xlsx(empresa_id: str = "default", db=Depends(get_db)):
+@limiter.limit("5/minute")
+async def exportar_presupuestos_xlsx(request: Request, empresa_id: str = "default", db=Depends(get_db)):
     import json
     rows = db.query(PresupuestoModel).filter(PresupuestoModel.empresa_id == empresa_id).all()
     data = []

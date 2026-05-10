@@ -1,4 +1,4 @@
-"""Clientes Fiscales — ABM con SQLite."""
+"""Clientes Fiscales — ABM con SQLite + validaciones argentinas."""
 from __future__ import annotations
 
 from typing import Optional
@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.database import get_db, ClienteModel, _generar_id, _ahora
+from utils.validaciones_ar import validar_cuit, validar_dni, validar_email, formatear_cuit
 
 router = APIRouter()
 
@@ -46,7 +47,7 @@ def _row_to_dict(c: ClienteModel) -> dict:
         "id": c.id,
         "empresa_id": c.empresa_id,
         "nombre": c.nombre,
-        "cuit": c.cuit,
+        "cuit": formatear_cuit(c.cuit) if c.cuit else "",
         "dni": c.dni,
         "condicion_iva": c.condicion_iva,
         "direccion": c.direccion,
@@ -56,6 +57,14 @@ def _row_to_dict(c: ClienteModel) -> dict:
         "created_at": c.created_at,
         "updated_at": c.updated_at,
     }
+
+def _validar(body: ClienteFiscalBase):
+    if body.cuit and not validar_cuit(body.cuit):
+        raise HTTPException(400, f"CUIT invalido: {body.cuit}")
+    if body.dni and not validar_dni(body.dni):
+        raise HTTPException(400, f"DNI invalido: {body.dni}")
+    if body.email and not validar_email(body.email):
+        raise HTTPException(400, f"Email invalido: {body.email}")
 
 @router.get("/")
 async def listar_clientes(
@@ -88,6 +97,7 @@ async def obtener_cliente(cliente_id: str, db: Session = Depends(get_db)):
 
 @router.post("/", response_model=dict, status_code=201)
 async def crear_cliente(body: ClienteFiscalCreate, db: Session = Depends(get_db)):
+    _validar(body)
     data = body.model_dump()
     data["id"] = _generar_id()
     data["created_at"] = _ahora()
@@ -103,7 +113,15 @@ async def actualizar_cliente(cliente_id: str, body: ClienteFiscalUpdate, db: Ses
     c = db.query(ClienteModel).filter(ClienteModel.id == cliente_id).first()
     if not c:
         raise HTTPException(404, "Cliente no encontrado")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    # Validar CUIT/DNI/email si vienen
+    if "cuit" in updates and updates["cuit"] and not validar_cuit(updates["cuit"]):
+        raise HTTPException(400, f"CUIT invalido: {updates['cuit']}")
+    if "dni" in updates and updates["dni"] and not validar_dni(updates["dni"]):
+        raise HTTPException(400, f"DNI invalido: {updates['dni']}")
+    if "email" in updates and updates["email"] and not validar_email(updates["email"]):
+        raise HTTPException(400, f"Email invalido: {updates['email']}")
+    for k, v in updates.items():
         if v is not None:
             setattr(c, k, v)
     c.updated_at = _ahora()
