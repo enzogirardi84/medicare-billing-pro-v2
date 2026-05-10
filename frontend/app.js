@@ -6,14 +6,25 @@ const app = {
   prefacturas: [],
   cobros: [],
 
-  init() {
+  async init() {
     // Auto-detectar URL del servidor basada en window.location
     const detected = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8502';
     this.apiUrl = localStorage.getItem('billing_api_url') || detected;
     this.apiKey = localStorage.getItem('billing_api_key') || '';
     if (this.apiKey) {
-      this.showApp();
-      this.loadDashboard();
+      // Validar key antes de mostrar app
+      try {
+        const res = await fetch(this.apiUrl + '/api/health', { headers: { 'X-API-Key': this.apiKey } });
+        if (res.ok) {
+          this.showApp();
+          this.loadDashboard();
+        } else {
+          // Key invalida, limpiar
+          this.logout();
+        }
+      } catch (e) {
+        this.logout();
+      }
     } else {
       this.showLogin();
       const inputUrl = document.getElementById('api-url');
@@ -36,7 +47,11 @@ const app = {
     try {
       const res = await fetch(url, opts);
       if (res.status === 429) throw new Error('Demasiadas solicitudes. Espere un momento.');
-      if (res.status === 401 || res.status === 403) throw new Error('API Key inválida');
+      if (res.status === 401 || res.status === 403) {
+        // Key invalida: limpiar y redirigir al login
+        this.logout();
+        throw new Error('Sesión expirada. Ingrese nuevamente.');
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Error ${res.status}`);
@@ -49,10 +64,21 @@ const app = {
     }
   },
 
-  login() {
+  async login() {
     this.apiKey = document.getElementById('api-key').value.trim();
     this.apiUrl = document.getElementById('api-url').value.trim().replace(/\/$/, '');
     if (!this.apiKey) { document.getElementById('login-error').textContent = 'Ingrese la API Key'; return; }
+    // Validar key antes de guardar
+    try {
+      const res = await fetch(this.apiUrl + '/api/health', { headers: { 'X-API-Key': this.apiKey } });
+      if (!res.ok) {
+        document.getElementById('login-error').textContent = 'API Key inválida o servidor no responde';
+        return;
+      }
+    } catch (e) {
+      document.getElementById('login-error').textContent = 'No se pudo conectar al servidor: ' + e.message;
+      return;
+    }
     localStorage.setItem('billing_api_key', this.apiKey);
     localStorage.setItem('billing_api_url', this.apiUrl);
     this.showApp();
@@ -64,6 +90,10 @@ const app = {
     localStorage.removeItem('billing_api_url');
     this.apiKey = '';
     this.showLogin();
+    // Limpiar alerts y modales
+    document.getElementById('alerts').innerHTML = '';
+    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+    document.getElementById('modal-overlay').classList.add('hidden');
   },
 
   showLogin() {
