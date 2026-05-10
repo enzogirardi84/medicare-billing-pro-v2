@@ -71,7 +71,7 @@ async def listar_prefacturas(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    q = db.query(PrefacturaModel).filter(PrefacturaModel.empresa_id == empresa_id)
+    q = db.query(PrefacturaModel).filter(PrefacturaModel.empresa_id == empresa_id, PrefacturaModel.deleted_at == "")
     if estado:
         q = q.filter(PrefacturaModel.estado == estado)
     if cliente_id:
@@ -82,7 +82,7 @@ async def listar_prefacturas(
 
 @router.get("/{prefactura_id}", response_model=dict)
 async def obtener_prefactura(prefactura_id: str, db: Session = Depends(get_db)):
-    p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id).first()
+    p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id, PrefacturaModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Pre-factura no encontrada")
     return _row_to_dict(p)
@@ -108,7 +108,7 @@ async def crear_prefactura(body: PrefacturaCreate, db: Session = Depends(get_db)
 
 @router.put("/{prefactura_id}", response_model=dict)
 async def actualizar_prefactura(prefactura_id: str, body: PrefacturaUpdate, db: Session = Depends(get_db)):
-    p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id).first()
+    p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id, PrefacturaModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Pre-factura no encontrada")
     updates = body.model_dump(exclude_unset=True)
@@ -127,10 +127,10 @@ async def actualizar_prefactura(prefactura_id: str, body: PrefacturaUpdate, db: 
 
 @router.delete("/{prefactura_id}", status_code=204)
 async def eliminar_prefactura(prefactura_id: str, db: Session = Depends(get_db)):
-    p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id).first()
+    p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id, PrefacturaModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Pre-factura no encontrada")
-    db.delete(p)
+    p.deleted_at = _ahora()
     db.commit()
 
 def _procesar_cae_background(prefactura_id: str):
@@ -140,7 +140,7 @@ def _procesar_cae_background(prefactura_id: str):
     logger = logging.getLogger("billing_pro")
     db = SessionLocal()
     try:
-        p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id).first()
+        p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id, PrefacturaModel.deleted_at == "").first()
         if not p:
             logger.warning(f"Prefactura {prefactura_id} no encontrada para CAE background")
             return
@@ -189,7 +189,7 @@ def _procesar_cae_background(prefactura_id: str):
 
 @router.post("/{prefactura_id}/solicitar-cae", response_model=dict)
 async def endpoint_solicitar_cae(prefactura_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id).first()
+    p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id, PrefacturaModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Pre-factura no encontrada")
     if p.estado not in ("Pendiente", "Rechazada_ARCA"):

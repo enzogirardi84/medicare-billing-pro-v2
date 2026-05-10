@@ -1,4 +1,4 @@
-"""Presupuestos — gestión con SQLite."""
+"""Presupuestos — gestion con SQLite + soft delete."""
 from __future__ import annotations
 
 import json
@@ -56,7 +56,7 @@ def _row_to_dict(p: PresupuestoModel) -> dict:
         "updated_at": p.updated_at,
     }
 
-@router.get("/")
+@router.get("/", summary="Listar presupuestos")
 async def listar_presupuestos(
     empresa_id: str = Query(default="default"),
     estado: str = Query(default=""),
@@ -65,7 +65,7 @@ async def listar_presupuestos(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    q = db.query(PresupuestoModel).filter(PresupuestoModel.empresa_id == empresa_id)
+    q = db.query(PresupuestoModel).filter(PresupuestoModel.empresa_id == empresa_id, PresupuestoModel.deleted_at == "")
     if estado:
         q = q.filter(PresupuestoModel.estado == estado)
     if cliente_id:
@@ -74,14 +74,14 @@ async def listar_presupuestos(
     rows = q.order_by(PresupuestoModel.created_at.desc()).offset(offset).limit(limit).all()
     return {"total": total, "data": [_row_to_dict(p) for p in rows]}
 
-@router.get("/{presupuesto_id}", response_model=dict)
+@router.get("/{presupuesto_id}", response_model=dict, summary="Obtener presupuesto")
 async def obtener_presupuesto(presupuesto_id: str, db: Session = Depends(get_db)):
-    p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id).first()
+    p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id, PresupuestoModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Presupuesto no encontrado")
     return _row_to_dict(p)
 
-@router.post("/", response_model=dict, status_code=201)
+@router.post("/", response_model=dict, status_code=201, summary="Crear presupuesto")
 async def crear_presupuesto(body: PresupuestoCreate, db: Session = Depends(get_db)):
     data = body.model_dump()
     data["id"] = _generar_id()
@@ -98,9 +98,9 @@ async def crear_presupuesto(body: PresupuestoCreate, db: Session = Depends(get_d
     db.refresh(row)
     return _row_to_dict(row)
 
-@router.put("/{presupuesto_id}", response_model=dict)
+@router.put("/{presupuesto_id}", response_model=dict, summary="Actualizar presupuesto")
 async def actualizar_presupuesto(presupuesto_id: str, body: PresupuestoUpdate, db: Session = Depends(get_db)):
-    p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id).first()
+    p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id, PresupuestoModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Presupuesto no encontrado")
     updates = body.model_dump(exclude_unset=True)
@@ -117,17 +117,17 @@ async def actualizar_presupuesto(presupuesto_id: str, body: PresupuestoUpdate, d
     db.refresh(p)
     return _row_to_dict(p)
 
-@router.delete("/{presupuesto_id}", status_code=204)
+@router.delete("/{presupuesto_id}", status_code=204, summary="Eliminar presupuesto (soft delete)")
 async def eliminar_presupuesto(presupuesto_id: str, db: Session = Depends(get_db)):
-    p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id).first()
+    p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id, PresupuestoModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Presupuesto no encontrado")
-    db.delete(p)
+    p.deleted_at = _ahora()
     db.commit()
 
-@router.post("/{presupuesto_id}/convertir", response_model=dict)
+@router.post("/{presupuesto_id}/convertir", response_model=dict, summary="Convertir presupuesto a pre-factura")
 async def convertir_a_prefactura(presupuesto_id: str, db: Session = Depends(get_db)):
-    p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id).first()
+    p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id, PresupuestoModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Presupuesto no encontrado")
     if p.estado not in ("Aceptado", "Enviado"):

@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text
+from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 logger = logging.getLogger("billing_pro")
@@ -22,7 +22,16 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 Base = declarative_base()
 
 
-class ClienteModel(Base):
+class _AuditMixin:
+    """Mixin base para auditoria y soft delete."""
+    created_at = Column(String, default="")
+    updated_at = Column(String, default="")
+    created_by = Column(String, default="")
+    updated_by = Column(String, default="")
+    deleted_at = Column(String, default="")  # soft delete: vacio = activo
+
+
+class ClienteModel(Base, _AuditMixin):
     __tablename__ = "clientes"
     id = Column(String, primary_key=True)
     empresa_id = Column(String, default="default")
@@ -34,11 +43,9 @@ class ClienteModel(Base):
     telefono = Column(String, default="")
     email = Column(String, default="")
     notas = Column(Text, default="")
-    created_at = Column(String, default="")
-    updated_at = Column(String, default="")
 
 
-class PresupuestoModel(Base):
+class PresupuestoModel(Base, _AuditMixin):
     __tablename__ = "presupuestos"
     id = Column(String, primary_key=True)
     empresa_id = Column(String, default="default")
@@ -50,11 +57,9 @@ class PresupuestoModel(Base):
     estado = Column(String, default="Borrador")
     items_json = Column(Text, default="[]")
     notas = Column(Text, default="")
-    created_at = Column(String, default="")
-    updated_at = Column(String, default="")
 
 
-class PrefacturaModel(Base):
+class PrefacturaModel(Base, _AuditMixin):
     __tablename__ = "prefacturas"
     id = Column(String, primary_key=True)
     empresa_id = Column(String, default="default")
@@ -69,11 +74,9 @@ class PrefacturaModel(Base):
     cae_vencimiento = Column(String, default="")
     numero_factura = Column(String, default="")
     presupuesto_origen_id = Column(String, default="")
-    created_at = Column(String, default="")
-    updated_at = Column(String, default="")
 
 
-class CobroModel(Base):
+class CobroModel(Base, _AuditMixin):
     __tablename__ = "cobros"
     id = Column(String, primary_key=True)
     empresa_id = Column(String, default="default")
@@ -85,11 +88,9 @@ class CobroModel(Base):
     metodo_pago = Column(String, default="Efectivo")
     referencia = Column(String, default="")
     notas = Column(Text, default="")
-    created_at = Column(String, default="")
-    updated_at = Column(String, default="")
 
 
-class EstadoPagoModel(Base):
+class EstadoPagoModel(Base, _AuditMixin):
     __tablename__ = "estados_pago"
     id = Column(String, primary_key=True)
     empresa_id = Column(String, default="default")
@@ -101,8 +102,6 @@ class EstadoPagoModel(Base):
     estado = Column(String, default="Pendiente")
     fecha_vencimiento = Column(String, default="")
     notas = Column(Text, default="")
-    created_at = Column(String, default="")
-    updated_at = Column(String, default="")
 
 
 # ── Seleccion de motor: PostgreSQL > SQLite ──────────────────
@@ -110,7 +109,6 @@ def _crear_engine():
     db_url = os.getenv("DATABASE_URL", "").strip()
     if db_url:
         try:
-            # Supabase connection pooling via PgBouncer requiere connect_args especificos
             engine = create_engine(
                 db_url,
                 pool_pre_ping=True,
@@ -118,14 +116,12 @@ def _crear_engine():
                 max_overflow=10,
                 connect_args={"connect_timeout": 10},
             )
-            # Test conexion
             with engine.connect() as conn:
                 conn.execute("SELECT 1")
             logger.info("Conectado a PostgreSQL (Supabase)")
             return engine
         except Exception as exc:
             logger.warning(f"PostgreSQL no disponible ({exc}), usando SQLite fallback")
-    # Fallback SQLite
     sqlite_path = os.getenv("SQLITE_PATH", "./billing_pro.db")
     engine = create_engine(
         f"sqlite:///{sqlite_path}",

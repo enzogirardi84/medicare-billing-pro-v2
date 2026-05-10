@@ -57,7 +57,7 @@ async def listar_cobros(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    q = db.query(CobroModel).filter(CobroModel.empresa_id == empresa_id)
+    q = db.query(CobroModel).filter(CobroModel.empresa_id == empresa_id, CobroModel.deleted_at == "")
     if cliente_id:
         q = q.filter(CobroModel.cliente_id == cliente_id)
     if metodo_pago:
@@ -70,7 +70,7 @@ async def listar_cobros(
 
 @router.get("/{cobro_id}", response_model=dict)
 async def obtener_cobro(cobro_id: str, db: Session = Depends(get_db)):
-    c = db.query(CobroModel).filter(CobroModel.id == cobro_id).first()
+    c = db.query(CobroModel).filter(CobroModel.id == cobro_id, CobroModel.deleted_at == "").first()
     if not c:
         raise HTTPException(404, "Cobro no encontrado")
     return _row_to_dict(c)
@@ -92,7 +92,7 @@ async def registrar_cobro(body: CobroCreate, db: Session = Depends(get_db)):
 
 @router.put("/{cobro_id}", response_model=dict)
 async def actualizar_cobro(cobro_id: str, body: CobroUpdate, db: Session = Depends(get_db)):
-    c = db.query(CobroModel).filter(CobroModel.id == cobro_id).first()
+    c = db.query(CobroModel).filter(CobroModel.id == cobro_id, CobroModel.deleted_at == "").first()
     if not c:
         raise HTTPException(404, "Cobro no encontrado")
     updates = body.model_dump(exclude_unset=True)
@@ -108,10 +108,10 @@ async def actualizar_cobro(cobro_id: str, body: CobroUpdate, db: Session = Depen
 
 @router.delete("/{cobro_id}", status_code=204)
 async def eliminar_cobro(cobro_id: str, db: Session = Depends(get_db)):
-    c = db.query(CobroModel).filter(CobroModel.id == cobro_id).first()
+    c = db.query(CobroModel).filter(CobroModel.id == cobro_id, CobroModel.deleted_at == "").first()
     if not c:
         raise HTTPException(404, "Cobro no encontrado")
-    db.delete(c)
+    c.deleted_at = _ahora()
     db.commit()
 
 @router.get("/resumen/mensual", response_model=dict)
@@ -120,7 +120,7 @@ async def resumen_mensual(
     anio: int = Query(default=0),
     db: Session = Depends(get_db),
 ):
-    q = db.query(CobroModel).filter(CobroModel.empresa_id == empresa_id)
+    q = db.query(CobroModel).filter(CobroModel.empresa_id == empresa_id, CobroModel.deleted_at == "")
     if anio:
         q = q.filter(CobroModel.fecha.like(f"{anio}%"))
     rows = q.all()

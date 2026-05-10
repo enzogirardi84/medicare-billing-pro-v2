@@ -62,7 +62,7 @@ async def listar_estados(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    q = db.query(EstadoPagoModel).filter(EstadoPagoModel.empresa_id == empresa_id)
+    q = db.query(EstadoPagoModel).filter(EstadoPagoModel.empresa_id == empresa_id, EstadoPagoModel.deleted_at == "")
     if estado:
         q = q.filter(EstadoPagoModel.estado == estado)
     if cliente_id:
@@ -73,7 +73,7 @@ async def listar_estados(
 
 @router.get("/{estado_id}", response_model=dict)
 async def obtener_estado(estado_id: str, db: Session = Depends(get_db)):
-    e = db.query(EstadoPagoModel).filter(EstadoPagoModel.id == estado_id).first()
+    e = db.query(EstadoPagoModel).filter(EstadoPagoModel.id == estado_id, EstadoPagoModel.deleted_at == "").first()
     if not e:
         raise HTTPException(404, "Estado de pago no encontrado")
     return _row_to_dict(e)
@@ -94,7 +94,7 @@ async def crear_estado(body: EstadoPagoCreate, db: Session = Depends(get_db)):
 
 @router.put("/{estado_id}", response_model=dict)
 async def actualizar_estado(estado_id: str, body: EstadoPagoUpdate, db: Session = Depends(get_db)):
-    e = db.query(EstadoPagoModel).filter(EstadoPagoModel.id == estado_id).first()
+    e = db.query(EstadoPagoModel).filter(EstadoPagoModel.id == estado_id, EstadoPagoModel.deleted_at == "").first()
     if not e:
         raise HTTPException(404, "Estado de pago no encontrado")
     updates = body.model_dump(exclude_unset=True)
@@ -114,15 +114,15 @@ async def actualizar_estado(estado_id: str, body: EstadoPagoUpdate, db: Session 
 
 @router.delete("/{estado_id}", status_code=204)
 async def eliminar_estado(estado_id: str, db: Session = Depends(get_db)):
-    e = db.query(EstadoPagoModel).filter(EstadoPagoModel.id == estado_id).first()
+    e = db.query(EstadoPagoModel).filter(EstadoPagoModel.id == estado_id, EstadoPagoModel.deleted_at == "").first()
     if not e:
         raise HTTPException(404, "Estado de pago no encontrado")
-    db.delete(e)
+    e.deleted_at = _ahora()
     db.commit()
 
 @router.get("/resumen/cartera", response_model=dict)
 async def resumen_cartera(empresa_id: str = Query(default="default"), db: Session = Depends(get_db)):
-    rows = db.query(EstadoPagoModel).filter(EstadoPagoModel.empresa_id == empresa_id).all()
+    rows = db.query(EstadoPagoModel).filter(EstadoPagoModel.empresa_id == empresa_id, EstadoPagoModel.deleted_at == "").all()
     total_facturado = sum((e.monto_total or 0) for e in rows)
     total_cobrado = sum((e.monto_pagado or 0) for e in rows)
     por_estado = {}

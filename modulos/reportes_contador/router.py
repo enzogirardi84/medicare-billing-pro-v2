@@ -16,9 +16,9 @@ async def reporte_mensual(
     mes: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
-    q_cobros = db.query(CobroModel).filter(CobroModel.empresa_id == empresa_id)
-    q_prefac = db.query(PrefacturaModel).filter(PrefacturaModel.empresa_id == empresa_id)
-    q_estados = db.query(EstadoPagoModel).filter(EstadoPagoModel.empresa_id == empresa_id)
+    q_cobros = db.query(CobroModel).filter(CobroModel.empresa_id == empresa_id, CobroModel.deleted_at == "")
+    q_prefac = db.query(PrefacturaModel).filter(PrefacturaModel.empresa_id == empresa_id, PrefacturaModel.deleted_at == "")
+    q_estados = db.query(EstadoPagoModel).filter(EstadoPagoModel.empresa_id == empresa_id, EstadoPagoModel.deleted_at == "")
 
     if anio:
         a = str(anio)
@@ -82,9 +82,9 @@ async def reporte_iva(
     anio: int = Query(default=0),
     db: Session = Depends(get_db),
 ):
-    q_clientes = db.query(ClienteModel).filter(ClienteModel.empresa_id == empresa_id)
+    q_clientes = db.query(ClienteModel).filter(ClienteModel.empresa_id == empresa_id, ClienteModel.deleted_at == "")
     clientes = {c.id: c for c in q_clientes.all()}
-    q_prefac = db.query(PrefacturaModel).filter(PrefacturaModel.empresa_id == empresa_id)
+    q_prefac = db.query(PrefacturaModel).filter(PrefacturaModel.empresa_id == empresa_id, PrefacturaModel.deleted_at == "")
     if anio:
         q_prefac = q_prefac.filter(PrefacturaModel.fecha.like(f"{anio}%"))
     prefacturas = q_prefac.all()

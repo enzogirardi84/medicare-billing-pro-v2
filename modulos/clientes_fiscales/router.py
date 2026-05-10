@@ -1,4 +1,4 @@
-"""Clientes Fiscales — ABM con SQLite + validaciones argentinas."""
+"""Clientes Fiscales — ABM con SQLite + validaciones argentinas + soft delete."""
 from __future__ import annotations
 
 from typing import Optional
@@ -66,7 +66,7 @@ def _validar(body: ClienteFiscalBase):
     if body.email and not validar_email(body.email):
         raise HTTPException(400, f"Email invalido: {body.email}")
 
-@router.get("/")
+@router.get("/", summary="Listar clientes fiscales")
 async def listar_clientes(
     empresa_id: str = Query(default="default"),
     buscar: str = Query(default=""),
@@ -75,7 +75,7 @@ async def listar_clientes(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
-    q = db.query(ClienteModel).filter(ClienteModel.empresa_id == empresa_id)
+    q = db.query(ClienteModel).filter(ClienteModel.empresa_id == empresa_id, ClienteModel.deleted_at == "")
     if buscar:
         q = q.filter(
             (ClienteModel.nombre.ilike(f"%{buscar}%")) |
@@ -88,14 +88,14 @@ async def listar_clientes(
     rows = q.order_by(ClienteModel.nombre).offset(offset).limit(limit).all()
     return {"total": total, "data": [_row_to_dict(c) for c in rows]}
 
-@router.get("/{cliente_id}", response_model=dict)
+@router.get("/{cliente_id}", response_model=dict, summary="Obtener cliente por ID")
 async def obtener_cliente(cliente_id: str, db: Session = Depends(get_db)):
-    c = db.query(ClienteModel).filter(ClienteModel.id == cliente_id).first()
+    c = db.query(ClienteModel).filter(ClienteModel.id == cliente_id, ClienteModel.deleted_at == "").first()
     if not c:
         raise HTTPException(404, "Cliente no encontrado")
     return _row_to_dict(c)
 
-@router.post("/", response_model=dict, status_code=201)
+@router.post("/", response_model=dict, status_code=201, summary="Crear cliente fiscal")
 async def crear_cliente(body: ClienteFiscalCreate, db: Session = Depends(get_db)):
     _validar(body)
     data = body.model_dump()
@@ -108,13 +108,12 @@ async def crear_cliente(body: ClienteFiscalCreate, db: Session = Depends(get_db)
     db.refresh(row)
     return _row_to_dict(row)
 
-@router.put("/{cliente_id}", response_model=dict)
+@router.put("/{cliente_id}", response_model=dict, summary="Actualizar cliente fiscal")
 async def actualizar_cliente(cliente_id: str, body: ClienteFiscalUpdate, db: Session = Depends(get_db)):
-    c = db.query(ClienteModel).filter(ClienteModel.id == cliente_id).first()
+    c = db.query(ClienteModel).filter(ClienteModel.id == cliente_id, ClienteModel.deleted_at == "").first()
     if not c:
         raise HTTPException(404, "Cliente no encontrado")
     updates = body.model_dump(exclude_unset=True)
-    # Validar CUIT/DNI/email si vienen
     if "cuit" in updates and updates["cuit"] and not validar_cuit(updates["cuit"]):
         raise HTTPException(400, f"CUIT invalido: {updates['cuit']}")
     if "dni" in updates and updates["dni"] and not validar_dni(updates["dni"]):
@@ -129,17 +128,17 @@ async def actualizar_cliente(cliente_id: str, body: ClienteFiscalUpdate, db: Ses
     db.refresh(c)
     return _row_to_dict(c)
 
-@router.delete("/{cliente_id}", status_code=204)
+@router.delete("/{cliente_id}", status_code=204, summary="Eliminar cliente (soft delete)")
 async def eliminar_cliente(cliente_id: str, db: Session = Depends(get_db)):
-    c = db.query(ClienteModel).filter(ClienteModel.id == cliente_id).first()
+    c = db.query(ClienteModel).filter(ClienteModel.id == cliente_id, ClienteModel.deleted_at == "").first()
     if not c:
         raise HTTPException(404, "Cliente no encontrado")
-    db.delete(c)
+    c.deleted_at = _ahora()
     db.commit()
 
-@router.get("/stats/condiciones", response_model=dict)
+@router.get("/stats/condiciones", response_model=dict, summary="Estadisticas por condicion IVA")
 async def stats_condiciones(empresa_id: str = Query(default="default"), db: Session = Depends(get_db)):
-    rows = db.query(ClienteModel).filter(ClienteModel.empresa_id == empresa_id).all()
+    rows = db.query(ClienteModel).filter(ClienteModel.empresa_id == empresa_id, ClienteModel.deleted_at == "").all()
     conteo = {}
     for c in rows:
         iva = c.condicion_iva or "Consumidor Final"
