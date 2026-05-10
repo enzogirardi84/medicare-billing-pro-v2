@@ -26,6 +26,7 @@ from modulos.pre_facturas.router import router as prefacturas_router
 from modulos.historial_cobros.router import router as cobros_router
 from modulos.estados_pago.router import router as estados_router
 from modulos.reportes_contador.router import router as reportes_router
+from modulos.auth.router import router as auth_router
 from utils.exportacion_excel import exportar_clientes_excel, exportar_cobros_excel, exportar_presupuestos_excel
 from utils.exportacion_pdf import exportar_presupuesto_pdf, exportar_prefactura_pdf
 from utils.middleware import TimingMiddleware
@@ -84,6 +85,10 @@ app.add_middleware(
 app.add_middleware(TimingMiddleware)
 
 # ── Routers ─────────────────────────────────────────────────
+# Auth publico (sin API key)
+app.include_router(auth_router, prefix="/api/auth", tags=["Autenticacion"])
+
+# Routers protegidos (requieren API key o JWT)
 app.include_router(clientes_router, prefix="/api/clientes", tags=["Clientes Fiscales"], dependencies=[Depends(verificar_api_key)])
 app.include_router(presupuestos_router, prefix="/api/presupuestos", tags=["Presupuestos"], dependencies=[Depends(verificar_api_key)])
 app.include_router(prefacturas_router, prefix="/api/prefacturas", tags=["Pre-facturas"], dependencies=[Depends(verificar_api_key)])

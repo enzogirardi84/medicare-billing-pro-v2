@@ -104,6 +104,18 @@ class EstadoPagoModel(Base, _AuditMixin):
     notas = Column(Text, default="")
 
 
+
+
+class UsuarioModel(Base, _AuditMixin):
+    __tablename__ = "usuarios"
+    id = Column(String, primary_key=True)
+    username = Column(String, nullable=False, unique=True)
+    password_hash = Column(String, nullable=False)
+    nombre = Column(String, default="")
+    email = Column(String, default="")
+    rol = Column(String, default="user")  # admin, user
+    activo = Column(String, default="true")
+
 # ── Seleccion de motor: PostgreSQL > SQLite ──────────────────
 def _crear_engine():
     db_url = os.getenv("DATABASE_URL", "").strip()

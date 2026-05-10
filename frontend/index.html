@@ -16,15 +16,46 @@
       <h1>Medicare Billing Pro</h1>
     </div>
     <p class="subtitle">Microservicio de Facturación Electrónica ARCA</p>
-    <div class="form-group">
-      <label for="api-key">Clave API</label>
-      <input type="password" id="api-key" placeholder="Ingrese su X-API-Key" autofocus>
+
+    <div id="login-tabs">
+      <button class="tab-btn active" data-tab="login-tab">Iniciar Sesión</button>
+      <button class="tab-btn" data-tab="register-tab">Registrarse</button>
     </div>
-    <div class="form-group">
-      <label for="api-url">URL del Servidor</label>
-      <input type="text" id="api-url" value="http://localhost:8502" placeholder="http://localhost:8502">
+
+    <!-- Login Tab -->
+    <div id="login-tab" class="tab-content">
+      <div class="form-group">
+        <label for="login-username">Usuario</label>
+        <input type="text" id="login-username" placeholder="usuario" autofocus>
+      </div>
+      <div class="form-group">
+        <label for="login-password">Contraseña</label>
+        <input type="password" id="login-password" placeholder="••••••">
+      </div>
+      <button id="btn-login" class="btn btn-primary btn-block">Ingresar</button>
     </div>
-    <button id="btn-login" class="btn btn-primary btn-block">Ingresar</button>
+
+    <!-- Register Tab -->
+    <div id="register-tab" class="tab-content hidden">
+      <div class="form-group">
+        <label for="reg-username">Usuario</label>
+        <input type="text" id="reg-username" placeholder="usuario">
+      </div>
+      <div class="form-group">
+        <label for="reg-password">Contraseña</label>
+        <input type="password" id="reg-password" placeholder="••••••">
+      </div>
+      <div class="form-group">
+        <label for="reg-nombre">Nombre completo</label>
+        <input type="text" id="reg-nombre" placeholder="Juan Pérez">
+      </div>
+      <div class="form-group">
+        <label for="reg-email">Email</label>
+        <input type="email" id="reg-email" placeholder="juan@ejemplo.com">
+      </div>
+      <button id="btn-register" class="btn btn-primary btn-block">Registrarse</button>
+    </div>
+
     <p id="login-error" class="error-msg"></p>
   </div>
 </div>
