@@ -64,7 +64,7 @@ def cargar_configuracion_arca() -> ArcaConfig:
     if cfg.homologacion:
         cfg.api_url = os.getenv(
             "ARCA_HOMOLOGACION_URL",
-            "https://fwshomo.afip.gov.ar/wsfev1/service.asmx",
+            "https://wswhomo.afip.gov.ar/wsfev1/service.asmx",
         )
     else:
         cfg.api_url = os.getenv(

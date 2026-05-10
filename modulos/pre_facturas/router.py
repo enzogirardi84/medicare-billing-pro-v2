@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from db.database import get_db, PrefacturaModel, _generar_id, _ahora
 from utils import fmt_moneda
-from integrations.arca_wsfe import solicitar_cae_stub
+from integrations.arca_wsfe import solicitar_cae, solicitar_cae_stub
 from config.arca_config import cargar_configuracion_arca
 
 router = APIRouter()
@@ -134,7 +134,7 @@ async def eliminar_prefactura(prefactura_id: str, db: Session = Depends(get_db))
     db.commit()
 
 @router.post("/{prefactura_id}/solicitar-cae", response_model=dict)
-async def solicitar_cae(prefactura_id: str, db: Session = Depends(get_db)):
+async def endpoint_solicitar_cae(prefactura_id: str, db: Session = Depends(get_db)):
     p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id).first()
     if not p:
         raise HTTPException(404, "Pre-factura no encontrada")
@@ -144,17 +144,45 @@ async def solicitar_cae(prefactura_id: str, db: Session = Depends(get_db)):
     p.updated_at = _ahora()
     db.commit()
     cfg = cargar_configuracion_arca()
-    cliente = {"nombre": p.cliente_nombre, "cuit": ""}
+
+    # Buscar datos del cliente para el CUIT/DNI
+    from db.database import ClienteModel
+    cliente_db = db.query(ClienteModel).filter(ClienteModel.id == p.cliente_id).first()
+    cliente = {
+        "nombre": p.cliente_nombre,
+        "cuit": cliente_db.cuit if cliente_db else "",
+        "dni": cliente_db.dni if cliente_db else "",
+        "condicion_iva": cliente_db.condicion_iva if cliente_db else "Consumidor Final",
+    }
     items = json.loads(p.items_json) if p.items_json else []
     prefactura = {"id": p.id, "items": items}
-    resultado = solicitar_cae_stub(cfg, prefactura, cliente)
-    if resultado.get("cae"):
-        p.cae = resultado["cae"]
-        p.cae_vencimiento = resultado.get("cae_vencimiento", "")
-        p.numero_factura = resultado.get("numero_factura", "")
-        p.estado = "Aprobada"
-    else:
-        p.estado = "Rechazada_ARCA"
+
+    # Intentar integracion real; si falla o faltan certificados, fallback a stub
+    resultado = None
+    try:
+        if cfg.cert_path.exists() and cfg.key_path.exists() and cfg.cuit and cfg.cuit != "00000000000":
+            resultado = solicitar_cae(cfg, prefactura, cliente)
+            if resultado.get("cae"):
+                p.cae = resultado["cae"]
+                p.cae_vencimiento = resultado.get("cae_vencimiento", "")
+                p.numero_factura = resultado.get("numero_factura", "")
+                p.estado = "Aprobada"
+            else:
+                p.estado = "Rechazada_ARCA"
+        else:
+            raise RuntimeError("Certificados ARCA no configurados")
+    except Exception as exc:
+        import logging
+        logging.getLogger("billing_pro").warning(f"ARCA real fallo ({exc}), usando stub")
+        resultado = solicitar_cae_stub(cfg, prefactura, cliente)
+        if resultado.get("cae"):
+            p.cae = resultado["cae"]
+            p.cae_vencimiento = resultado.get("cae_vencimiento", "")
+            p.numero_factura = resultado.get("numero_factura", "")
+            p.estado = "Aprobada"
+        else:
+            p.estado = "Rechazada_ARCA"
+
     p.updated_at = _ahora()
     db.commit()
     return {
@@ -163,4 +191,5 @@ async def solicitar_cae(prefactura_id: str, db: Session = Depends(get_db)):
         "estado": p.estado,
         "cae": p.cae,
         "numero_factura": p.numero_factura,
+        "modo": "real" if (cfg.cert_path.exists() and cfg.cuit != "00000000000") else "stub",
     }
