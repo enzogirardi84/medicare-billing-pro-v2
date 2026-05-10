@@ -7,11 +7,17 @@ const app = {
   cobros: [],
 
   init() {
+    // Auto-detectar URL del servidor basada en window.location
+    const detected = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8502';
+    this.apiUrl = localStorage.getItem('billing_api_url') || detected;
+    this.apiKey = localStorage.getItem('billing_api_key') || '';
     if (this.apiKey) {
       this.showApp();
       this.loadDashboard();
     } else {
       this.showLogin();
+      const inputUrl = document.getElementById('api-url');
+      if (inputUrl) inputUrl.value = this.apiUrl;
     }
     document.getElementById('btn-login').addEventListener('click', () => this.login());
     document.getElementById('btn-logout').addEventListener('click', () => this.logout());
