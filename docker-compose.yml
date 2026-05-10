@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  billing_pro:
+    build: .
+    ports:
+      - "8502:8502"
+    env_file:
+      - .env
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./data:/app/data
+    restart: unless-stopped
