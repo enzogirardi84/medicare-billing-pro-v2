@@ -7,9 +7,12 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -179,6 +182,21 @@ async def webhook_cae_resultado(payload: dict):
     estado = payload.get("estado")
     logger.info(f"Webhook CAE recibido: prefactura={prefactura_id} cae={cae} estado={estado}")
     return {"mensaje": "Webhook procesado", "prefactura_id": prefactura_id, "cae": cae}
+
+
+# ── Frontend ──────────────────────────────────────────────
+app.mount("/static", StaticFiles(directory=str(PROJECT_ROOT / "frontend")), name="static")
+
+@app.get("/", tags=["Frontend"], include_in_schema=False)
+async def serve_index():
+    return FileResponse(str(PROJECT_ROOT / "frontend" / "index.html"))
+
+@app.get("/{path:path}", tags=["Frontend"], include_in_schema=False)
+async def serve_spa(path: str):
+    # Solo si no es una ruta de API, servir el SPA
+    if not path.startswith("api/") and not path.startswith("static/"):
+        return FileResponse(str(PROJECT_ROOT / "frontend" / "index.html"))
+    return JSONResponse({"error": "Not found"}, 404)
 
 
 @app.exception_handler(Exception)

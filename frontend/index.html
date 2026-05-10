@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medicare Billing Pro v2</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="screen">
+  <div class="login-card">
+    <div class="logo">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+      <h1>Medicare Billing Pro</h1>
+    </div>
+    <p class="subtitle">Microservicio de Facturación Electrónica ARCA</p>
+    <div class="form-group">
+      <label for="api-key">Clave API</label>
+      <input type="password" id="api-key" placeholder="Ingrese su X-API-Key" autofocus>
+    </div>
+    <div class="form-group">
+      <label for="api-url">URL del Servidor</label>
+      <input type="text" id="api-url" value="http://localhost:8502" placeholder="http://localhost:8502">
+    </div>
+    <button id="btn-login" class="btn btn-primary btn-block">Ingresar</button>
+    <p id="login-error" class="error-msg"></p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app-screen" class="screen hidden">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+      <span>Billing Pro</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" data-section="dashboard" class="nav-item active"><span class="icon">&#8962;</span> Dashboard</a>
+      <a href="#" data-section="clientes" class="nav-item"><span class="icon">&#9786;</span> Clientes</a>
+      <a href="#" data-section="presupuestos" class="nav-item"><span class="icon">&#128203;</span> Presupuestos</a>
+      <a href="#" data-section="prefacturas" class="nav-item"><span class="icon">&#128462;</span> Pre-facturas</a>
+      <a href="#" data-section="cobros" class="nav-item"><span class="icon">&#128178;</span> Cobros</a>
+      <a href="#" data-section="reportes" class="nav-item"><span class="icon">&#128200;</span> Reportes</a>
+    </nav>
+    <div class="sidebar-footer">
+      <button id="btn-logout" class="btn btn-outline btn-sm">Salir</button>
+    </div>
+  </aside>
+
+  <!-- Content -->
+  <main class="content">
+    <!-- Header -->
+    <header class="topbar">
+      <h2 id="page-title">Dashboard</h2>
+      <div class="topbar-meta">
+        <span class="badge badge-info" id="arca-badge">ARCA: Homologación</span>
+        <span class="badge badge-success" id="server-status">Online</span>
+      </div>
+    </header>
+
+    <!-- Alert container -->
+    <div id="alerts"></div>
+
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="page">
+      <div class="cards-grid">
+        <div class="metric-card">
+          <div class="metric-label">Clientes</div>
+          <div class="metric-value" id="dash-clientes">—</div>
+          <div class="metric-icon blue">&#9786;</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Presupuestos</div>
+          <div class="metric-value" id="dash-presupuestos">—</div>
+          <div class="metric-icon amber">&#128203;</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Pre-facturas</div>
+          <div class="metric-value" id="dash-prefacturas">—</div>
+          <div class="metric-icon purple">&#128462;</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Cobros</div>
+          <div class="metric-value" id="dash-cobros">—</div>
+          <div class="metric-icon green">&#128178;</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Pendientes</div>
+          <div class="metric-value" id="dash-pendientes">—</div>
+          <div class="metric-icon red">&#128197;</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Estado del Servicio</h3>
+        <div class="status-list">
+          <div><span>Servidor:</span> <span class="status-ok">OK</span></div>
+          <div><span>Versión:</span> <span>2.0.0</span></div>
+          <div><span>ARCA Ready:</span> <span id="dash-arca-ready">No</span></div>
+          <div><span>DB:</span> <span id="dash-db">SQLite</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLIENTES -->
+    <section id="clientes" class="page hidden">
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="app.openModal('cliente-modal')">+ Nuevo Cliente</button>
+        <input type="text" id="search-clientes" placeholder="Buscar..." class="search-input" onkeyup="app.searchClientes()">
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead><tr><th>Nombre</th><th>CUIT</th><th>DNI</th><th>IVA</th><th>Email</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-clientes"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PRESUPUESTOS -->
+    <section id="presupuestos" class="page hidden">
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="app.openModal('presupuesto-modal')">+ Nuevo Presupuesto</button>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-presupuestos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PRE-FACTURAS -->
+    <section id="prefacturas" class="page hidden">
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="app.openModal('prefactura-modal')">+ Nueva Pre-factura</button>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>CAE</th><th>Total</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-prefacturas"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- COBROS -->
+    <section id="cobros" class="page hidden">
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="app.openModal('cobro-modal')">+ Nuevo Cobro</button>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Método</th><th>Referencia</th><th>Acciones</th></tr></thead>
+          <tbody id="tabla-cobros"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- REPORTES -->
+    <section id="reportes" class="page hidden">
+      <div class="panel">
+        <h3>Resumen Mensual de Cobros</h3>
+        <div id="reporte-cobros"></div>
+      </div>
+      <div class="panel">
+        <h3>Cartera por Estado</h3>
+        <div id="reporte-cartera"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODALS -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="app.closeAllModals(event)">
+
+  <!-- Cliente Modal -->
+  <div class="modal" id="cliente-modal">
+    <div class="modal-header"><h3 id="cliente-modal-title">Nuevo Cliente</h3><button class="close-btn" onclick="app.closeModal('cliente-modal')">&times;</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="cliente-id">
+      <div class="form-row">
+        <div class="form-group"><label>Nombre *</label><input type="text" id="cliente-nombre"></div>
+        <div class="form-group"><label>CUIT</label><input type="text" id="cliente-cuit" placeholder="30-12345678-9"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>DNI</label><input type="text" id="cliente-dni" placeholder="12345678"></div>
+        <div class="form-group"><label>Condición IVA</label>
+          <select id="cliente-iva">
+            <option>Consumidor Final</option><option>Responsable Inscripto</option><option>Monotributista</option><option>Exento</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Teléfono</label><input type="text" id="cliente-telefono"></div>
+        <div class="form-group"><label>Email</label><input type="email" id="cliente-email"></div>
+      </div>
+      <div class="form-group"><label>Dirección</label><input type="text" id="cliente-direccion"></div>
+      <div class="form-group"><label>Notas</label><textarea id="cliente-notas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('cliente-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="app.guardarCliente()">Guardar</button>
+    </div>
+  </div>
+
+  <!-- Presupuesto Modal -->
+  <div class="modal" id="presupuesto-modal">
+    <div class="modal-header"><h3>Nuevo Presupuesto</h3><button class="close-btn" onclick="app.closeModal('presupuesto-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>Cliente ID *</label><input type="text" id="pres-cliente-id"></div>
+        <div class="form-group"><label>Cliente Nombre</label><input type="text" id="pres-cliente-nombre"></div>
+      </div>
+      <div class="form-group"><label>Notas</label><textarea id="pres-notas" rows="2"></textarea></div>
+      <h4>Conceptos</h4>
+      <div id="pres-items"></div>
+      <button class="btn btn-sm btn-secondary" onclick="app.addPresItem()">+ Agregar concepto</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('presupuesto-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="app.guardarPresupuesto()">Guardar</button>
+    </div>
+  </div>
+
+  <!-- Pre-factura Modal -->
+  <div class="modal" id="prefactura-modal">
+    <div class="modal-header"><h3>Nueva Pre-factura</h3><button class="close-btn" onclick="app.closeModal('prefactura-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>Cliente ID *</label><input type="text" id="fac-cliente-id"></div>
+        <div class="form-group"><label>Cliente Nombre</label><input type="text" id="fac-cliente-nombre"></div>
+      </div>
+      <div class="form-group"><label>Notas</label><textarea id="fac-notas" rows="2"></textarea></div>
+      <h4>Conceptos</h4>
+      <div id="fac-items"></div>
+      <button class="btn btn-sm btn-secondary" onclick="app.addFacItem()">+ Agregar concepto</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('prefactura-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="app.guardarPrefactura()">Guardar</button>
+    </div>
+  </div>
+
+  <!-- Cobro Modal -->
+  <div class="modal" id="cobro-modal">
+    <div class="modal-header"><h3>Nuevo Cobro</h3><button class="close-btn" onclick="app.closeModal('cobro-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>Cliente ID *</label><input type="text" id="cobro-cliente-id"></div>
+        <div class="form-group"><label>Cliente Nombre</label><input type="text" id="cobro-cliente-nombre"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Monto *</label><input type="number" id="cobro-monto"></div>
+        <div class="form-group"><label>Método de Pago</label>
+          <select id="cobro-metodo">
+            <option>Efectivo</option><option>Transferencia</option><option>Debito</option><option>Credito</option><option>Cheque</option><option>MercadoPago</option><option>Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Pre-factura ID</label><input type="text" id="cobro-prefactura-id"></div>
+        <div class="form-group"><label>Referencia</label><input type="text" id="cobro-referencia"></div>
+      </div>
+      <div class="form-group"><label>Notas</label><textarea id="cobro-notas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('cobro-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="app.guardarCobro()">Guardar</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
