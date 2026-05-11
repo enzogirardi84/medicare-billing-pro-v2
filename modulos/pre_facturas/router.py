@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.database import get_db, PrefacturaModel, _generar_id, _ahora
+from db import supabase_rest
 from utils import fmt_moneda
 from integrations.arca_wsfe import solicitar_cae, solicitar_cae_stub
 from config.arca_config import cargar_configuracion_arca
@@ -104,6 +105,8 @@ async def crear_prefactura(body: PrefacturaCreate, db: Session = Depends(get_db)
     db.add(row)
     db.commit()
     db.refresh(row)
+    # Dual-write a Supabase REST
+    supabase_rest.crear_prefactura(dict(data))
     return _row_to_dict(row)
 
 @router.put("/{prefactura_id}", response_model=dict)
@@ -123,6 +126,8 @@ async def actualizar_prefactura(prefactura_id: str, body: PrefacturaUpdate, db: 
     p.updated_at = _ahora()
     db.commit()
     db.refresh(p)
+    # Dual-write a Supabase REST
+    supabase_rest.actualizar_prefactura(prefactura_id, {"estado": p.estado, "items_json": p.items_json, "cae": p.cae, "cae_vencimiento": p.cae_vencimiento, "numero_factura": p.numero_factura, "updated_at": p.updated_at})
     return _row_to_dict(p)
 
 @router.delete("/{prefactura_id}", status_code=204)
@@ -130,8 +135,11 @@ async def eliminar_prefactura(prefactura_id: str, db: Session = Depends(get_db))
     p = db.query(PrefacturaModel).filter(PrefacturaModel.id == prefactura_id, PrefacturaModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Pre-factura no encontrada")
-    p.deleted_at = _ahora()
+    deleted_at = _ahora()
+    p.deleted_at = deleted_at
     db.commit()
+    # Dual-write a Supabase REST
+    supabase_rest.actualizar_prefactura(prefactura_id, {"deleted_at": deleted_at})
 
 def _procesar_cae_background(prefactura_id: str):
     """Tarea en background para procesar CAE con nueva sesion de DB."""

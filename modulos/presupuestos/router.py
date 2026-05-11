@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.database import get_db, PresupuestoModel, _generar_id, _ahora
+from db import supabase_rest
 from utils import fmt_moneda
 
 router = APIRouter()
@@ -96,6 +97,8 @@ async def crear_presupuesto(body: PresupuestoCreate, db: Session = Depends(get_d
     db.add(row)
     db.commit()
     db.refresh(row)
+    # Dual-write a Supabase REST
+    supabase_rest.crear_presupuesto(dict(data))
     return _row_to_dict(row)
 
 @router.put("/{presupuesto_id}", response_model=dict, summary="Actualizar presupuesto")
@@ -115,6 +118,8 @@ async def actualizar_presupuesto(presupuesto_id: str, body: PresupuestoUpdate, d
     p.updated_at = _ahora()
     db.commit()
     db.refresh(p)
+    # Dual-write a Supabase REST
+    supabase_rest.actualizar_presupuesto(presupuesto_id, {"estado": p.estado, "items_json": p.items_json, "notas": p.notas, "updated_at": p.updated_at})
     return _row_to_dict(p)
 
 @router.delete("/{presupuesto_id}", status_code=204, summary="Eliminar presupuesto (soft delete)")
@@ -122,8 +127,11 @@ async def eliminar_presupuesto(presupuesto_id: str, db: Session = Depends(get_db
     p = db.query(PresupuestoModel).filter(PresupuestoModel.id == presupuesto_id, PresupuestoModel.deleted_at == "").first()
     if not p:
         raise HTTPException(404, "Presupuesto no encontrado")
-    p.deleted_at = _ahora()
+    deleted_at = _ahora()
+    p.deleted_at = deleted_at
     db.commit()
+    # Dual-write a Supabase REST
+    supabase_rest.actualizar_presupuesto(presupuesto_id, {"deleted_at": deleted_at})
 
 @router.post("/{presupuesto_id}/convertir", response_model=dict, summary="Convertir presupuesto a pre-factura")
 async def convertir_a_prefactura(presupuesto_id: str, db: Session = Depends(get_db)):

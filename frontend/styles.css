@@ -183,3 +183,9 @@ html, body { height: 100%; font-family: 'Segoe UI', system-ui, -apple-system, sa
 .tab-btn { flex: 1; padding: 8px; border: none; border-radius: 8px; background: #f1f5f9; color: #475569; font-weight: 600; cursor: pointer; font-size: 13px; }
 .tab-btn.active { background: var(--primary); color: white; }
 .tab-content.hidden { display: none; }
+
+/* DB connection indicator */
+.db-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 6px; }
+.db-indicator.sqlite { background: #f59e0b; }
+.db-indicator.supabase { background: #16a34a; box-shadow: 0 0 4px #16a34a; }
+.db-indicator.cloud { background: #06b6d4; box-shadow: 0 0 4px #06b6d4; }

@@ -20,6 +20,7 @@ from slowapi.errors import RateLimitExceeded
 from config.arca_config import cargar_configuracion_arca, ArcaConfig
 from auth.api_key import verificar_api_key
 from db.database import get_db, ClienteModel, PresupuestoModel, PrefacturaModel, CobroModel, EstadoPagoModel
+from db import supabase_rest
 from modulos.clientes_fiscales.router import router as clientes_router
 from modulos.presupuestos.router import router as presupuestos_router
 from modulos.pre_facturas.router import router as prefacturas_router
@@ -101,12 +102,22 @@ app.include_router(reportes_router, prefix="/api/reportes", tags=["Reportes Cont
 @app.get("/api/health", tags=["Sistema"], summary="Estado del microservicio")
 @limiter.limit("10/minute")
 async def health_check(request: Request):
+    # Detectar tipo de base de datos
+    from db.database import ENGINE
+    db_tipo = "SQLite"
+    db_url = str(ENGINE.url)
+    if "postgresql" in db_url or "postgres" in db_url:
+        db_tipo = "PostgreSQL (Supabase)"
+    elif supabase_rest.is_available():
+        db_tipo = "Supabase REST (cloud)"
     return {
         "status": "ok",
         "servicio": "Medicare Billing Pro",
         "version": "2.0.0",
         "arca_modo": "homologacion" if (arca_config and arca_config.homologacion) else "produccion",
         "arca_ready": arca_config is not None and arca_config.cert_path.exists(),
+        "db_tipo": db_tipo,
+        "supabase_rest": supabase_rest.is_available(),
     }
 
 

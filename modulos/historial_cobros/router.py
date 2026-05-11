@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.database import get_db, CobroModel, _generar_id, _ahora
+from db import supabase_rest
 from utils import fmt_moneda
 
 router = APIRouter()
@@ -88,6 +89,8 @@ async def registrar_cobro(body: CobroCreate, db: Session = Depends(get_db)):
     db.add(row)
     db.commit()
     db.refresh(row)
+    # Dual-write a Supabase REST
+    supabase_rest.crear_cobro(dict(data))
     return _row_to_dict(row)
 
 @router.put("/{cobro_id}", response_model=dict)
@@ -104,6 +107,8 @@ async def actualizar_cobro(cobro_id: str, body: CobroUpdate, db: Session = Depen
     c.updated_at = _ahora()
     db.commit()
     db.refresh(c)
+    # Dual-write a Supabase REST
+    supabase_rest.actualizar_cobro(cobro_id, body.model_dump(exclude_unset=True))
     return _row_to_dict(c)
 
 @router.delete("/{cobro_id}", status_code=204)
@@ -111,8 +116,11 @@ async def eliminar_cobro(cobro_id: str, db: Session = Depends(get_db)):
     c = db.query(CobroModel).filter(CobroModel.id == cobro_id, CobroModel.deleted_at == "").first()
     if not c:
         raise HTTPException(404, "Cobro no encontrado")
-    c.deleted_at = _ahora()
+    deleted_at = _ahora()
+    c.deleted_at = deleted_at
     db.commit()
+    # Dual-write a Supabase REST
+    supabase_rest.actualizar_cobro(cobro_id, {"deleted_at": deleted_at})
 
 @router.get("/resumen/mensual", response_model=dict)
 async def resumen_mensual(

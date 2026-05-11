@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.database import get_db, ClienteModel, _generar_id, _ahora
+from db import supabase_rest
 from utils.validaciones_ar import validar_cuit, validar_dni, validar_email, formatear_cuit
 
 router = APIRouter()
@@ -106,6 +107,8 @@ async def crear_cliente(body: ClienteFiscalCreate, db: Session = Depends(get_db)
     db.add(row)
     db.commit()
     db.refresh(row)
+    # Dual-write a Supabase REST
+    supabase_rest.crear_cliente(dict(data))
     return _row_to_dict(row)
 
 @router.put("/{cliente_id}", response_model=dict, summary="Actualizar cliente fiscal")
@@ -126,6 +129,10 @@ async def actualizar_cliente(cliente_id: str, body: ClienteFiscalUpdate, db: Ses
     c.updated_at = _ahora()
     db.commit()
     db.refresh(c)
+    # Dual-write a Supabase REST
+    updates = body.model_dump(exclude_unset=True)
+    updates["updated_at"] = c.updated_at
+    supabase_rest.actualizar_cliente(cliente_id, updates)
     return _row_to_dict(c)
 
 @router.delete("/{cliente_id}", status_code=204, summary="Eliminar cliente (soft delete)")
@@ -133,8 +140,11 @@ async def eliminar_cliente(cliente_id: str, db: Session = Depends(get_db)):
     c = db.query(ClienteModel).filter(ClienteModel.id == cliente_id, ClienteModel.deleted_at == "").first()
     if not c:
         raise HTTPException(404, "Cliente no encontrado")
-    c.deleted_at = _ahora()
+    deleted_at = _ahora()
+    c.deleted_at = deleted_at
     db.commit()
+    # Dual-write a Supabase REST
+    supabase_rest.eliminar_cliente(cliente_id, deleted_at)
 
 @router.get("/stats/condiciones", response_model=dict, summary="Estadisticas por condicion IVA")
 async def stats_condiciones(empresa_id: str = Query(default="default"), db: Session = Depends(get_db)):
