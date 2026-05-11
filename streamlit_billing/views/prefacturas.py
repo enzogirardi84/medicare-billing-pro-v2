@@ -10,7 +10,7 @@ from core.db_sql import delete_prefactura, get_clientes, get_prefacturas, upsert
 from core.excel_export import XLSX_DISPONIBLE, exportar_prefacturas_excel
 from core.pdf_export import FPDF_DISPONIBLE, exportar_prefactura_pdf
 from core.billing_logic import enriquecer_prefacturas_con_saldo, money
-from core.utils import bloque_estado_vacio, fmt_fecha, fmt_moneda, fmt_moneda_corto, generar_id, mostrar_error_db, sanitize_filename
+from core.utils import bloque_estado_vacio, fmt_fecha, fmt_moneda, fmt_moneda_corto, generar_id, hoy, mostrar_error_db, sanitize_filename
 
 ESTADOS_PREFACTURA = ["Pendiente", "Cobrada", "Anulada", "Parcial"]
 
@@ -258,11 +258,11 @@ def render_prefacturas() -> None:
                                 else:
                                     mostrar_error_db("actualizar el estado")
 
-                        a1, a2, a3, a4 = st.columns([1.2, 1.2, 1.4, 1.2])
+                        a1, a2, a3, a4, a5 = st.columns([1, 1, 1, 1, 1])
                         with a1:
                             if FPDF_DISPONIBLE:
                                 st.download_button(
-                                    "Descargar PDF",
+                                    "PDF",
                                     data=exportar_prefactura_pdf(p, empresa_nombre, p.get("items", [])),
                                     file_name=f"prefactura_{sanitize_filename(p.get('numero', ''))}.pdf",
                                     mime="application/pdf",
@@ -270,12 +270,32 @@ def render_prefacturas() -> None:
                                     use_container_width=True,
                                 )
                         with a2:
+                            if st.button("Duplicar", key=f"dup_fac_{pid}", use_container_width=True):
+                                duplicado = {
+                                    "id": generar_id(),
+                                    "empresa_id": empresa_id,
+                                    "numero": f"FAC-{generar_id()[:6].upper()}",
+                                    "cliente_id": p.get("cliente_id", ""),
+                                    "cliente_nombre": p.get("cliente_nombre", ""),
+                                    "cliente_dni": p.get("cliente_dni", ""),
+                                    "fecha": hoy().isoformat(),
+                                    "items": p.get("items", []),
+                                    "total": p.get("total", 0),
+                                    "estado": "Pendiente",
+                                    "notas": f"Duplicada de {p.get('numero', '')}. {p.get('notas', '')}".strip(),
+                                }
+                                if upsert_prefactura(duplicado):
+                                    st.toast(f"Pre-factura duplicada: {duplicado['numero']}")
+                                    st.rerun()
+                                else:
+                                    mostrar_error_db("duplicar la pre-factura")
+                        with a3:
                             if st.button("Editar", key=f"edit_fac_{pid}", use_container_width=True):
                                 st.session_state["fac_editing"] = pid
                                 st.rerun()
-                        with a3:
-                            confirm = st.checkbox("Confirmar borrado", key=f"confirm_del_fac_{pid}")
                         with a4:
+                            confirm = st.checkbox("Confirmar", key=f"confirm_del_fac_{pid}")
+                        with a5:
                             if st.button("Eliminar", key=f"del_fac_{pid}", use_container_width=True, disabled=not confirm):
                                 if delete_prefactura(pid):
                                     st.toast("Pre-factura eliminada.")

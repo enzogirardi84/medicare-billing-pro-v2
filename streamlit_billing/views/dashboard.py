@@ -1,8 +1,15 @@
 """Dashboard ejecutivo de Medicare Billing Pro."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict, List
+
+
+def _parse_date(value: Any, default: date) -> date:
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except Exception:
+        return default
 
 import streamlit as st
 
@@ -236,6 +243,42 @@ def render_dashboard() -> None:
                     estado_counts[est] = estado_counts.get(est, 0) + 1
                 estado_chart = [{"Estado": k, "Cantidad": v} for k, v in sorted(estado_counts.items(), key=lambda x: -x[1])]
                 st.bar_chart(estado_chart, x="Estado", y="Cantidad", height=260)
+
+    # Top 5 clientes por cobros
+    st.divider()
+    st.markdown("### 🏆 Top 5 clientes por cobros")
+    with st.container(border=True):
+        if not cobros:
+            bloque_estado_vacio("Sin cobros", "No hay datos suficientes.")
+        else:
+            cliente_cobros: Dict[str, float] = {}
+            for c in cobros:
+                nombre = c.get("cliente_nombre", "Sin nombre")
+                cliente_cobros[nombre] = cliente_cobros.get(nombre, 0.0) + _money(c.get("monto"))
+            top5 = sorted(cliente_cobros.items(), key=lambda x: -x[1])[:5]
+            top5_chart = [{"Cliente": k, "Cobrado": v} for k, v in top5]
+            st.bar_chart(top5_chart, x="Cliente", y="Cobrado", height=240)
+
+    # Recordatorios de vencimiento
+    st.markdown("### 🔔 Recordatorios")
+    cols_r = st.columns(2)
+    with cols_r[0]:
+        presupuestos_por_vencer_3d = [
+            p for p in presupuestos_abiertos
+            if str(p.get("valido_hasta", ""))[:10]
+            and date.today() <= _parse_date(p.get("valido_hasta"), date.max)
+            <= date.today() + timedelta(days=3)
+        ]
+        if presupuestos_por_vencer_3d:
+            st.warning(f"⚠️ {len(presupuestos_por_vencer_3d)} presupuesto(s) vence(n) en los proximos 3 dias")
+        else:
+            st.success("✅ No hay presupuestos por vencer en los proximos 3 dias")
+    with cols_r[1]:
+        if prefacturas_vencidas:
+            monto_vencido = sum(_money(p.get('saldo')) for p in prefacturas_vencidas)
+            st.error(f"⚠️ {len(prefacturas_vencidas)} pre-factura(s) vencida(s) con {fmt_moneda(monto_vencido)} pendiente")
+        else:
+            st.success("✅ No hay pre-facturas vencidas")
 
     st.divider()
     left, right = st.columns([1.05, 0.95], gap="large")

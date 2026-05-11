@@ -126,6 +126,16 @@ def bloque_estado_vacio(titulo: str, mensaje: str, sugerencia: str = "") -> None
     st.info(f"**{titulo}**\n\n{mensaje}" + (f"\n\n{sugerencia}" if sugerencia else ""))
 
 
+def filtro_persistente(key: str, default: Any = "") -> Any:
+    """Devuelve valor de filtro guardado en session_state."""
+    return st.session_state.get(key, default)
+
+
+def guardar_filtro(key: str, value: Any) -> None:
+    """Guarda valor de filtro en session_state."""
+    st.session_state[key] = value
+
+
 def mostrar_error_db(accion: str = "realizar la operacion") -> None:
     from core import db_sql
 

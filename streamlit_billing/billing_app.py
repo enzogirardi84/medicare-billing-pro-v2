@@ -33,6 +33,7 @@ MODULOS = {
     "Cobros": "cobros",
     "Cuenta corriente": "cuenta_corriente",
     "Reportes": "reportes",
+    "Auditoria": "auditoria",
     "Configuracion": "configuracion",
 }
 
@@ -45,6 +46,7 @@ MODULO_ICONOS = {
     "Cobros": "Cobros",
     "Cuenta corriente": "Cuenta",
     "Reportes": "Reportes",
+    "Auditoria": "Auditoria",
     "Configuracion": "Config.",
 }
 
@@ -355,6 +357,9 @@ def _main():
     elif modulo_key == "reportes":
         from views.reportes import render_reportes
         render_reportes()
+    elif modulo_key == "auditoria":
+        from views.auditoria import render_auditoria
+        render_auditoria()
     elif modulo_key == "configuracion":
         from views.configuracion import render_configuracion
         render_configuracion()
