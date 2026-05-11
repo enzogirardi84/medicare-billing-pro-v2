@@ -157,18 +157,38 @@ def render_cobros() -> None:
         if not cobros:
             bloque_estado_vacio("Sin cobros registrados", "Registra tu primer cobro desde la pestaña Nuevo cobro.")
         else:
-            cf1, cf2, cf3, cf4, cf5 = st.columns([1, 1, 2, 1, 1])
+            # Busqueda con boton
+            sc1, sc2, sc3 = st.columns([2.5, 0.8, 0.8])
+            with sc1:
+                busqueda_input = st.text_input(
+                    "Buscar",
+                    placeholder="Cliente o concepto...",
+                    key="cob_search_input",
+                    value=st.session_state.get("cob_busqueda", ""),
+                )
+            with sc2:
+                if st.button("🔍 Buscar", key="cob_buscar", use_container_width=True):
+                    st.session_state["cob_busqueda"] = busqueda_input.strip().lower()
+                    st.rerun()
+            with sc3:
+                if st.session_state.get("cob_busqueda"):
+                    if st.button("✕ Limpiar", key="cob_limpiar", use_container_width=True):
+                        st.session_state["cob_busqueda"] = ""
+                        st.rerun()
+                else:
+                    st.empty()
+
+            cf1, cf2, cf4, cf5 = st.columns([1, 1, 1, 1])
             with cf1:
                 metodo_filtro = st.selectbox("Metodo", ["Todos"] + METODOS_PAGO)
             with cf2:
                 estado_filtro = st.selectbox("Estado", ["Todos"] + ESTADOS_COBRO)
-            with cf3:
-                busqueda = st.text_input("Buscar", placeholder="Cliente o concepto...").strip().lower()
             with cf4:
                 fecha_desde = st.date_input("Desde", value=None, key="cob_fecha_desde")
             with cf5:
                 fecha_hasta = st.date_input("Hasta", value=None, key="cob_fecha_hasta")
 
+            busqueda = st.session_state.get("cob_busqueda", "")
             filtrados = cobros
             if metodo_filtro != "Todos":
                 filtrados = [c for c in filtrados if c.get("metodo_pago") == metodo_filtro]

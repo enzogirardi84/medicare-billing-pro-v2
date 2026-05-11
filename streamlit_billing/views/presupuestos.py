@@ -144,15 +144,35 @@ def render_presupuestos() -> None:
         if not presupuestos:
             bloque_estado_vacio("Sin presupuestos", "Crea tu primer presupuesto desde la pestaña Nuevo presupuesto.")
         else:
-            f1, f2, f3, f4 = st.columns([2, 1, 1, 1])
-            with f1:
-                busqueda = st.text_input("Buscar", placeholder="Numero o cliente...").strip().lower()
+            # Busqueda con boton
+            sc1, sc2, sc3 = st.columns([2.5, 0.8, 0.8])
+            with sc1:
+                busqueda_input = st.text_input(
+                    "Buscar",
+                    placeholder="Numero o cliente...",
+                    key="pres_search_input",
+                    value=st.session_state.get("pres_busqueda", ""),
+                )
+            with sc2:
+                if st.button("🔍 Buscar", key="pres_buscar", use_container_width=True):
+                    st.session_state["pres_busqueda"] = busqueda_input.strip().lower()
+                    st.rerun()
+            with sc3:
+                if st.session_state.get("pres_busqueda"):
+                    if st.button("✕ Limpiar", key="pres_limpiar", use_container_width=True):
+                        st.session_state["pres_busqueda"] = ""
+                        st.rerun()
+                else:
+                    st.empty()
+
+            f2, f3, f4 = st.columns([1, 1, 1])
             with f2:
                 estado_filtro = st.selectbox("Estado", ["Todos"] + ESTADOS_PRESUPUESTO)
             with f3:
                 fecha_desde = st.date_input("Desde", value=None, key="pres_fecha_desde")
             with f4:
                 fecha_hasta = st.date_input("Hasta", value=None, key="pres_fecha_hasta")
+            busqueda = st.session_state.get("pres_busqueda", "")
             filtrados = presupuestos
             if estado_filtro != "Todos":
                 filtrados = [p for p in filtrados if p.get("estado") == estado_filtro]

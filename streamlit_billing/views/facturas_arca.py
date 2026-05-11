@@ -166,9 +166,28 @@ def render_facturas_arca() -> None:
         if not facturas:
             bloque_estado_vacio("Sin facturas ARCA", "Crea una factura o convierte una pre-factura.")
         else:
-            f1, f2, f3, f4, f5 = st.columns([1.4, 1, 1, 1, 1])
-            with f1:
-                busqueda = st.text_input("Buscar factura", placeholder="Numero, cliente, DNI/CUIT o CAE...").strip().lower()
+            # Busqueda con boton
+            sc1, sc2, sc3 = st.columns([2.5, 0.8, 0.8])
+            with sc1:
+                busqueda_input = st.text_input(
+                    "Buscar factura",
+                    placeholder="Numero, cliente, DNI/CUIT o CAE...",
+                    key="arca_search_input",
+                    value=st.session_state.get("arca_busqueda", ""),
+                )
+            with sc2:
+                if st.button("🔍 Buscar", key="arca_buscar", use_container_width=True):
+                    st.session_state["arca_busqueda"] = busqueda_input.strip().lower()
+                    st.rerun()
+            with sc3:
+                if st.session_state.get("arca_busqueda"):
+                    if st.button("✕ Limpiar", key="arca_limpiar", use_container_width=True):
+                        st.session_state["arca_busqueda"] = ""
+                        st.rerun()
+                else:
+                    st.empty()
+
+            f2, f3, f4, f5 = st.columns([1, 1, 1, 1])
             with f2:
                 estado_filtro = st.selectbox("Estado", ["Todos"] + ESTADOS, key="arca_estado_filtro")
             with f3:
@@ -177,6 +196,7 @@ def render_facturas_arca() -> None:
                 fecha_desde = st.date_input("Desde", value=None, key="arca_fecha_desde")
             with f5:
                 fecha_hasta = st.date_input("Hasta", value=None, key="arca_fecha_hasta")
+            busqueda = st.session_state.get("arca_busqueda", "")
             facturas_filtradas = facturas
             if estado_filtro != "Todos":
                 facturas_filtradas = [f for f in facturas_filtradas if f.get("estado") == estado_filtro]

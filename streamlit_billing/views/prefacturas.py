@@ -126,15 +126,35 @@ def render_prefacturas() -> None:
         if not prefacturas:
             bloque_estado_vacio("Sin pre-facturas", "Crea tu primera pre-factura o converti un presupuesto aceptado.")
         else:
-            f1, f2, f3, f4 = st.columns([2, 1, 1, 1])
-            with f1:
-                busqueda = st.text_input("Buscar", placeholder="Numero, cliente o DNI/CUIT...").strip().lower()
+            # Busqueda con boton
+            sc1, sc2, sc3 = st.columns([2.5, 0.8, 0.8])
+            with sc1:
+                busqueda_input = st.text_input(
+                    "Buscar",
+                    placeholder="Numero, cliente o DNI/CUIT...",
+                    key="pref_search_input",
+                    value=st.session_state.get("pref_busqueda", ""),
+                )
+            with sc2:
+                if st.button("🔍 Buscar", key="pref_buscar", use_container_width=True):
+                    st.session_state["pref_busqueda"] = busqueda_input.strip().lower()
+                    st.rerun()
+            with sc3:
+                if st.session_state.get("pref_busqueda"):
+                    if st.button("✕ Limpiar", key="pref_limpiar", use_container_width=True):
+                        st.session_state["pref_busqueda"] = ""
+                        st.rerun()
+                else:
+                    st.empty()
+
+            f2, f3, f4 = st.columns([1, 1, 1])
             with f2:
                 estado_filtro = st.selectbox("Estado", ["Todos"] + ESTADOS_PREFACTURA)
             with f3:
                 fecha_desde = st.date_input("Desde", value=None, key="pref_fecha_desde")
             with f4:
                 fecha_hasta = st.date_input("Hasta", value=None, key="pref_fecha_hasta")
+            busqueda = st.session_state.get("pref_busqueda", "")
             filtradas = prefacturas
             if estado_filtro != "Todos":
                 filtradas = [p for p in filtradas if p.get("estado") == estado_filtro]

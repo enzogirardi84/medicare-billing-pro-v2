@@ -191,6 +191,53 @@ def render_dashboard() -> None:
                 _set_module(target)
 
     st.divider()
+
+    # Graficos del dashboard
+    chart_left, chart_right = st.columns(2)
+    with chart_left:
+        st.markdown("### 📊 Evolucion mensual")
+        with st.container(border=True):
+            if not cobros and not prefacturas:
+                bloque_estado_vacio("Sin datos", "Carga cobros y pre-facturas para ver la evolucion mensual.")
+            else:
+                meses_cobros: Dict[str, float] = {}
+                meses_prefacturas: Dict[str, float] = {}
+                for c in cobros:
+                    key = str(c.get("fecha", ""))[:7]
+                    if key:
+                        meses_cobros[key] = meses_cobros.get(key, 0.0) + _money(c.get("monto"))
+                for p in prefacturas_raw:
+                    key = str(p.get("fecha", ""))[:7]
+                    if key:
+                        meses_prefacturas[key] = meses_prefacturas.get(key, 0.0) + _money(p.get("total"))
+                all_months = sorted(set(list(meses_cobros.keys()) + list(meses_prefacturas.keys())))
+                if all_months:
+                    chart_data = [
+                        {
+                            "Mes": _month_label(m),
+                            "Cobrado": meses_cobros.get(m, 0),
+                            "Pre-facturado": meses_prefacturas.get(m, 0),
+                        }
+                        for m in all_months[-6:]
+                    ]
+                    st.bar_chart(chart_data, x="Mes", y=["Cobrado", "Pre-facturado"], height=260)
+                else:
+                    bloque_estado_vacio("Sin datos", "No hay cobros ni pre-facturas registradas.")
+
+    with chart_right:
+        st.markdown("### 📋 Estados de presupuestos")
+        with st.container(border=True):
+            if not presupuestos:
+                bloque_estado_vacio("Sin presupuestos", "Carga presupuestos para ver el desglose por estado.")
+            else:
+                estado_counts: Dict[str, int] = {}
+                for p in presupuestos:
+                    est = str(p.get("estado", "Borrador")).strip() or "Borrador"
+                    estado_counts[est] = estado_counts.get(est, 0) + 1
+                estado_chart = [{"Estado": k, "Cantidad": v} for k, v in sorted(estado_counts.items(), key=lambda x: -x[1])]
+                st.bar_chart(estado_chart, x="Estado", y="Cantidad", height=260)
+
+    st.divider()
     left, right = st.columns([1.05, 0.95], gap="large")
 
     with left:

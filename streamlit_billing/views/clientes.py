@@ -111,9 +111,28 @@ def render_clientes() -> None:
                 "Luego vas a poder usarlos en presupuestos, pre-facturas y cobros.",
             )
         else:
-            top1, top2 = st.columns([2.4, 1])
-            with top1:
-                busqueda = st.text_input("Buscar cliente", placeholder="Nombre, DNI/CUIT, email o telefono...").strip().lower()
+            # Busqueda con boton (no filtra en cada tecla para mejor performance)
+            sc1, sc2, sc3 = st.columns([2.5, 0.8, 0.8])
+            with sc1:
+                busqueda_input = st.text_input(
+                    "Buscar cliente",
+                    placeholder="Nombre, DNI/CUIT, email o telefono...",
+                    key="cli_search_input",
+                    value=st.session_state.get("cli_busqueda", ""),
+                )
+            with sc2:
+                if st.button("🔍 Buscar", key="cli_buscar", use_container_width=True):
+                    st.session_state["cli_busqueda"] = busqueda_input.strip().lower()
+                    st.rerun()
+            with sc3:
+                if st.session_state.get("cli_busqueda"):
+                    if st.button("✕ Limpiar", key="cli_limpiar", use_container_width=True):
+                        st.session_state["cli_busqueda"] = ""
+                        st.rerun()
+                else:
+                    st.empty()
+
+            busqueda = st.session_state.get("cli_busqueda", "")
             filtrados = clientes
             if busqueda:
                 filtrados = [
@@ -124,8 +143,7 @@ def render_clientes() -> None:
                     or busqueda in str(c.get("email", "")).lower()
                     or busqueda in str(c.get("telefono", "")).lower()
                 ]
-            with top2:
-                st.metric("Clientes", len(filtrados))
+            st.metric("Clientes", len(filtrados))
 
             if XLSX_DISPONIBLE and filtrados:
                 excel_data = exportar_clientes_excel(filtrados, empresa_nombre)
