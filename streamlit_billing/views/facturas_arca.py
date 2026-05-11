@@ -20,7 +20,7 @@ from core.db_sql import (
 )
 from core.excel_export import XLSX_DISPONIBLE, exportar_facturas_arca_excel
 from core.pdf_export import FPDF_DISPONIBLE, exportar_factura_arca_pdf
-from core.utils import bloque_estado_vacio, fmt_fecha, fmt_moneda, generar_id, mostrar_error_db, sanitize_filename
+from core.utils import bloque_estado_vacio, fmt_fecha, fmt_moneda, fmt_moneda_corto, generar_id, mostrar_error_db, sanitize_filename
 
 TIPOS = ["A", "B", "C"]
 ESTADOS = ["Borrador", "Lista para ARCA", "CAE pendiente", "Autorizada", "Observada", "Anulada"]
@@ -154,8 +154,10 @@ def render_facturas_arca() -> None:
     empresa_id = st.session_state.get("billing_empresa_id", "")
     empresa_nombre = st.session_state.get("billing_empresa_nombre", "Mi Empresa")
     usuario = st.session_state.get("billing_user", {}).get("nombre", "")
-    config = get_config_fiscal(empresa_id)
-    facturas = get_facturas_arca(empresa_id)
+
+    with st.spinner("Cargando facturas ARCA..."):
+        config = get_config_fiscal(empresa_id)
+        facturas = get_facturas_arca(empresa_id)
     status = validar_configuracion_arca(config)
     (st.success if status.listo else st.warning)(status.mensaje)
 
@@ -194,12 +196,27 @@ def render_facturas_arca() -> None:
                     or busqueda in str(f.get("cae", "")).lower()
                 ]
             k1, k2 = st.columns(2)
+            total_filtrado = sum(money(f.get("total")) for f in facturas_filtradas)
             k1.metric("Facturas filtradas", len(facturas_filtradas))
-            k2.metric("Total filtrado", fmt_moneda(sum(money(f.get("total")) for f in facturas_filtradas)))
+            k2.metric("Total filtrado", fmt_moneda_corto(total_filtrado), help=fmt_moneda(total_filtrado))
             if XLSX_DISPONIBLE:
                 st.download_button("Exportar Excel", exportar_facturas_arca_excel(facturas_filtradas, empresa_nombre), f"facturas_arca_{sanitize_filename(empresa_nombre)}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+
+            # Paginacion
+            _PAGE_SIZE = 15
+            total_pages = max(1, (len(facturas_filtradas) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+            if len(facturas_filtradas) > _PAGE_SIZE:
+                pg_cols = st.columns([3, 1])
+                with pg_cols[0]:
+                    page = st.selectbox("Pagina", options=list(range(1, total_pages + 1)), key="arca_page") - 1
+                with pg_cols[1]:
+                    st.caption(f"Mostrando {min(_PAGE_SIZE, len(facturas_filtradas) - page * _PAGE_SIZE)} de {len(facturas_filtradas)}")
+            else:
+                page = 0
+            paginated = facturas_filtradas[page * _PAGE_SIZE:(page + 1) * _PAGE_SIZE]
+
             with st.container(height=610, border=False):
-                for f in facturas_filtradas:
+                for f in paginated:
                     with st.container(border=True):
                         c1, c2, c3 = st.columns([3, 1.4, 2])
                         with c1:

@@ -10,7 +10,7 @@ from core.db_sql import delete_prefactura, get_clientes, get_prefacturas, upsert
 from core.excel_export import XLSX_DISPONIBLE, exportar_prefacturas_excel
 from core.pdf_export import FPDF_DISPONIBLE, exportar_prefactura_pdf
 from core.billing_logic import enriquecer_prefacturas_con_saldo, money
-from core.utils import bloque_estado_vacio, fmt_fecha, fmt_moneda, generar_id, mostrar_error_db, sanitize_filename
+from core.utils import bloque_estado_vacio, fmt_fecha, fmt_moneda, fmt_moneda_corto, generar_id, mostrar_error_db, sanitize_filename
 
 ESTADOS_PREFACTURA = ["Pendiente", "Cobrada", "Anulada", "Parcial"]
 
@@ -116,8 +116,9 @@ def render_prefacturas() -> None:
     empresa_nombre = st.session_state.get("billing_empresa_nombre", "Mi Empresa")
     from core.db_sql import get_cobros
 
-    cobros = get_cobros(empresa_id)
-    prefacturas = enriquecer_prefacturas_con_saldo(get_prefacturas(empresa_id), cobros)
+    with st.spinner("Cargando pre-facturas..."):
+        cobros = get_cobros(empresa_id)
+        prefacturas = enriquecer_prefacturas_con_saldo(get_prefacturas(empresa_id), cobros)
 
     tab1, tab2 = st.tabs(["Historial", "Nueva pre-factura"])
 
@@ -151,9 +152,12 @@ def render_prefacturas() -> None:
                 ]
 
             k1, k2, k3 = st.columns(3)
-            k1.metric("Total filtrado", fmt_moneda(sum(money(p.get("total")) for p in filtradas)))
-            k2.metric("Cobrado", fmt_moneda(sum(money(p.get("cobrado")) for p in filtradas)))
-            k3.metric("Saldo", fmt_moneda(sum(money(p.get("saldo")) for p in filtradas)))
+            total_filtrado = sum(money(p.get("total")) for p in filtradas)
+            cobrado_filtrado = sum(money(p.get("cobrado")) for p in filtradas)
+            saldo_filtrado = sum(money(p.get("saldo")) for p in filtradas)
+            k1.metric("Total filtrado", fmt_moneda_corto(total_filtrado), help=fmt_moneda(total_filtrado))
+            k2.metric("Cobrado", fmt_moneda_corto(cobrado_filtrado), help=fmt_moneda(cobrado_filtrado))
+            k3.metric("Saldo", fmt_moneda_corto(saldo_filtrado), help=fmt_moneda(saldo_filtrado))
             if XLSX_DISPONIBLE and filtradas:
                 st.download_button(
                     "Exportar Excel",
@@ -163,8 +167,21 @@ def render_prefacturas() -> None:
                     use_container_width=True,
                 )
 
+            # Paginacion
+            _PAGE_SIZE = 15
+            total_pages = max(1, (len(filtradas) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+            if len(filtradas) > _PAGE_SIZE:
+                pg_cols = st.columns([3, 1])
+                with pg_cols[0]:
+                    page = st.selectbox("Pagina", options=list(range(1, total_pages + 1)), key="pref_page") - 1
+                with pg_cols[1]:
+                    st.caption(f"Mostrando {min(_PAGE_SIZE, len(filtradas) - page * _PAGE_SIZE)} de {len(filtradas)}")
+            else:
+                page = 0
+            paginated = filtradas[page * _PAGE_SIZE:(page + 1) * _PAGE_SIZE]
+
             with st.container(height=610, border=False):
-                for p in filtradas:
+                for p in paginated:
                     pid = p.get("id")
                     with st.container(border=True):
                         c1, c2, c3 = st.columns([3, 1.3, 1.7])

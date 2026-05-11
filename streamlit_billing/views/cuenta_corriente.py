@@ -9,7 +9,7 @@ from core.billing_logic import enriquecer_prefacturas_con_saldo, money
 from core.db_sql import get_clientes, get_cobros, get_facturas_arca, get_prefacturas, get_presupuestos
 from core.excel_export import XLSX_DISPONIBLE, exportar_estado_cuenta_excel
 from core.pdf_export import FPDF_DISPONIBLE, exportar_estado_cuenta_pdf
-from core.utils import bloque_estado_vacio, fmt_fecha, fmt_moneda, sanitize_filename
+from core.utils import bloque_estado_vacio, fmt_fecha, fmt_moneda, fmt_moneda_corto, sanitize_filename
 
 
 def _cliente_key(cliente: Dict[str, Any]) -> str:
@@ -108,18 +108,19 @@ def render_cuenta_corriente() -> None:
 
     empresa_id = st.session_state.get("billing_empresa_id", "")
     empresa_nombre = st.session_state.get("billing_empresa_nombre", "Mi Empresa")
-    clientes = get_clientes(empresa_id)
-    if not clientes:
-        bloque_estado_vacio(
-            "Sin clientes",
-            "Carga al menos un cliente fiscal para consultar su cuenta corriente.",
-        )
-        return
 
-    cobros = get_cobros(empresa_id)
-    prefacturas = enriquecer_prefacturas_con_saldo(get_prefacturas(empresa_id), cobros)
-    presupuestos = get_presupuestos(empresa_id)
-    facturas_arca = get_facturas_arca(empresa_id)
+    with st.spinner("Cargando datos..."):
+        clientes = get_clientes(empresa_id)
+        if not clientes:
+            bloque_estado_vacio(
+                "Sin clientes",
+                "Carga al menos un cliente fiscal para consultar su cuenta corriente.",
+            )
+            return
+        cobros = get_cobros(empresa_id)
+        prefacturas = enriquecer_prefacturas_con_saldo(get_prefacturas(empresa_id), cobros)
+        presupuestos = get_presupuestos(empresa_id)
+        facturas_arca = get_facturas_arca(empresa_id)
 
     clientes_opts = {_cliente_key(c): c for c in clientes}
     default_label = st.session_state.get("cc_cliente_label")
@@ -159,9 +160,9 @@ def render_cuenta_corriente() -> None:
     saldo = total_debe - total_haber
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Debe", fmt_moneda(total_debe))
-    c2.metric("Haber", fmt_moneda(total_haber))
-    c3.metric("Saldo", fmt_moneda(saldo), delta_color="inverse")
+    c1.metric("Debe", fmt_moneda_corto(total_debe), help=fmt_moneda(total_debe))
+    c2.metric("Haber", fmt_moneda_corto(total_haber), help=fmt_moneda(total_haber))
+    c3.metric("Saldo", fmt_moneda_corto(saldo), delta_color="inverse", help=fmt_moneda(saldo))
     c4.metric("Movimientos", len(movimientos))
 
     st.caption(
