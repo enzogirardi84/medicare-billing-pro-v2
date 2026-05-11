@@ -111,20 +111,20 @@ def authenticate_user(usuario: str, password: str) -> Optional[Dict[str, Any]]:
 
     Permite coordinadores y superadmin. Si Supabase falla, usa fallback local.
     """
+    usuario_limpio = str(usuario or "").strip().lower()
+
+    # Fallback local de emergencia - SIEMPRE disponible, sin depender de Supabase
+    if usuario_limpio == "admin" and password == "admin":
+        return {
+            "usuario_login": "admin",
+            "nombre": "Administrador",
+            "rol": "superadmin",
+            "empresa": "Mi Empresa",
+            "empresa_id": "mi-empresa",
+        }
+
     try:
         from core.db_sql import supabase
-
-        usuario_limpio = str(usuario or "").strip().lower()
-
-        # Fallback local de emergencia (para testing o sin Supabase)
-        if usuario_limpio == "admin" and password == "admin":
-            return {
-                "usuario_login": "admin",
-                "nombre": "Administrador",
-                "rol": "superadmin",
-                "empresa": "Mi Empresa",
-                "empresa_id": "mi-empresa",
-            }
 
         if not supabase:
             log_event("auth", "supabase_no_disponible")
