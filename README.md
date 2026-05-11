@@ -7,7 +7,7 @@ Completamente aislado de la lógica clínica de Medicare Pro.
 
 ```
 medicare_billing_pro/
-├── main.py                    # Punto de entrada FastAPI
+├── api_main.py                    # Punto de entrada FastAPI
 ├── config/
 │   └── arca_config.py         # Certificados y credenciales ARCA
 ├── modulos/
