@@ -24,9 +24,9 @@ _COMPRESS_MAGIC = "_mc_gz2"
 
 def check_supabase_connection() -> bool:
     try:
-        from core.db_sql import supabase
+        from core.db_sql import _active_supabase
 
-        return supabase is not None
+        return _active_supabase() is not None
     except Exception:
         return False
 
@@ -255,9 +255,16 @@ def render_login() -> bool:
         }
         .stButton > button[kind="primary"] p,
         .stButton > button[data-testid="stBaseButton-primary"] p { color: #ffffff !important; }
-        @media (max-width: 760px) {
+        @media (max-width: 768px) {
             .main .block-container { padding: 1.25rem 1rem 2rem !important; }
             .billing-login-metrics { grid-template-columns: 1fr; }
+            .billing-login-hero h1 { font-size: 1.6rem !important; }
+            .billing-login-hero p { font-size: 0.85rem !important; }
+            .billing-login-card h2 { font-size: 1.15rem !important; }
+        }
+        @media (max-width: 480px) {
+            .billing-login-hero { padding: 1rem !important; }
+            .billing-login-card { padding: 1rem !important; }
         }
         </style>
         """,

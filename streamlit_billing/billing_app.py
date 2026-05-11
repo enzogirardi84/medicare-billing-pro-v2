@@ -1,6 +1,7 @@
 """Medicare Billing Pro - entry point."""
 from __future__ import annotations
 
+import time
 import traceback
 
 import streamlit as st
@@ -8,7 +9,7 @@ import streamlit as st
 from core.app_logging import configurar_logging_basico, log_event
 from core.auth import render_logout_button, require_auth
 from core.config import ALLOW_LOCAL_FALLBACK, APP_NAME, APP_VERSION, DEBUG, PAGE_TITLE
-from core.db_sql import LOCAL_DATA_PATH, get_clientes, get_cobros, get_facturas_arca, get_prefacturas, get_presupuestos, supabase
+from core.db_sql import LOCAL_DATA_PATH, get_clientes, get_cobros, get_facturas_arca, get_prefacturas, get_presupuestos, _active_supabase
 from core.billing_logic import total_saldo_prefacturas
 from core.utils import fmt_moneda
 
@@ -37,7 +38,8 @@ def _main():
         st.markdown(f"**{user.get('nombre', 'Usuario')}**")
         st.caption(f"Empresa: {empresa_nombre}")
         st.caption(f"Rol: {user.get('rol', 'usuario')}")
-        st.caption("Supabase conectado" if supabase else "Supabase requerido")
+        sb_conn = _active_supabase() is not None
+        st.caption("Supabase conectado" if sb_conn else "Modo local")
         if ALLOW_LOCAL_FALLBACK and LOCAL_DATA_PATH.exists():
             st.caption(f"Archivo local: `{LOCAL_DATA_PATH.name}`")
         st.divider()
@@ -48,6 +50,21 @@ def _main():
 
     st.markdown("<h1 style='margin-bottom:0.15rem;'>Medicare Billing Pro</h1>", unsafe_allow_html=True)
     st.caption(f"Facturacion medica profesional | {empresa_nombre}")
+
+    # CSS responsive para movil y tablet
+    st.markdown("""
+    <style>
+    @media (max-width: 768px) {
+        [data-testid="stHorizontalBlock"] > div { flex-wrap: wrap !important; }
+        [data-testid="stHorizontalBlock"] > div > div { min-width: 48% !important; flex: 1 1 48% !important; }
+        .stButton > button { font-size: 0.72rem !important; padding: 0.3rem 0.5rem !important; }
+        h1 { font-size: 1.4rem !important; }
+    }
+    @media (max-width: 480px) {
+        [data-testid="stHorizontalBlock"] > div > div { min-width: 100% !important; flex: 1 1 100% !important; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     MODULOS = {
         "Resumen": "dashboard",
@@ -67,7 +84,6 @@ def _main():
     modulo_activo = st.session_state["billing_modulo_activo"]
 
     # Cachear datos en session_state para evitar queries repetidos
-    import time
     _cache_key = f"billing_cache_{empresa_id}"
     _cache_ts_key = "billing_cache_ts"
     cache_valid = False
@@ -169,7 +185,7 @@ def _main():
     st.markdown("---")
 
     # Banner de estado minimalista
-    if not supabase:
+    if not _active_supabase():
         st.warning("Modo local activo. Conecta Supabase para persistencia en la nube.", icon="☁️")
     elif ALLOW_LOCAL_FALLBACK and LOCAL_DATA_PATH.exists():
         st.success("Supabase conectado. Modo respaldo local habilitado.", icon="✅")
