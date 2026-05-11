@@ -149,12 +149,13 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
             if fac_sel != "Ninguna":
                 fac_data = dict(fac_opts.get(fac_sel, {}))
                 if fac_data:
-                    saldo = saldo_prefactura(fac_data, cobros)
+                    cobros_sin_actual = [c for c in cobros if str(c.get("id")) != str(data.get("id"))]
+                    saldo = saldo_prefactura(fac_data, cobros_sin_actual)
                     if monto - saldo > 0.01:
                         st.error(f"El monto supera el saldo de la pre-factura ({fmt_moneda(saldo)}).")
                         return None
                     data["prefactura_id"] = fac_data.get("id")
-                    projected_cobros = cobros + [data]
+                    projected_cobros = cobros_sin_actual + [data]
                     fac_data["estado"] = estado_prefactura_por_saldo(fac_data, projected_cobros)
                     if not upsert_prefactura(fac_data):
                         mostrar_error_db("actualizar la pre-factura vinculada")
