@@ -199,15 +199,21 @@ def render_prefacturas() -> None:
                 else:
                     st.empty()
 
-            f2, f3, f4 = st.columns([1, 1, 1])
+            # Clientes unicos para filtro
+            nombres_clientes = sorted({p.get("cliente_nombre", "") for p in prefacturas if p.get("cliente_nombre")})
+            f2, f3, f4, f5 = st.columns([1.2, 1, 1, 1])
             with f2:
-                estado_filtro = st.selectbox("Estado", ["Todos"] + ESTADOS_PREFACTURA)
+                cliente_filtro = st.selectbox("Cliente", ["Todos"] + nombres_clientes, key="pref_cliente_filtro")
             with f3:
-                fecha_desde = st.date_input("Desde", value=None, key="pref_fecha_desde")
+                estado_filtro = st.selectbox("Estado", ["Todos"] + ESTADOS_PREFACTURA, key="pref_estado_filtro")
             with f4:
+                fecha_desde = st.date_input("Desde", value=None, key="pref_fecha_desde")
+            with f5:
                 fecha_hasta = st.date_input("Hasta", value=None, key="pref_fecha_hasta")
             busqueda = st.session_state.get("pref_busqueda", "")
             filtradas = prefacturas
+            if cliente_filtro != "Todos":
+                filtradas = [p for p in filtradas if p.get("cliente_nombre") == cliente_filtro]
             if estado_filtro != "Todos":
                 filtradas = [p for p in filtradas if p.get("estado") == estado_filtro]
             if fecha_desde:

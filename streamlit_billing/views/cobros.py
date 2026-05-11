@@ -239,11 +239,14 @@ def render_cobros() -> None:
                 else:
                     st.empty()
 
-            cf1, cf2, cf4, cf5 = st.columns([1, 1, 1, 1])
+            nombres_clientes_cob = sorted({c.get("cliente_nombre", "") for c in cobros if c.get("cliente_nombre")})
+            cf1, cf2, cf3, cf4, cf5 = st.columns([1.2, 1, 1, 1, 1])
             with cf1:
-                metodo_filtro = st.selectbox("Metodo", ["Todos"] + METODOS_PAGO)
+                cliente_filtro = st.selectbox("Cliente", ["Todos"] + nombres_clientes_cob, key="cob_cliente_filtro")
             with cf2:
-                estado_filtro = st.selectbox("Estado", ["Todos"] + ESTADOS_COBRO)
+                metodo_filtro = st.selectbox("Metodo", ["Todos"] + METODOS_PAGO, key="cob_metodo_filtro")
+            with cf3:
+                estado_filtro = st.selectbox("Estado", ["Todos"] + ESTADOS_COBRO, key="cob_estado_filtro")
             with cf4:
                 fecha_desde = st.date_input("Desde", value=None, key="cob_fecha_desde")
             with cf5:
@@ -251,6 +254,8 @@ def render_cobros() -> None:
 
             busqueda = st.session_state.get("cob_busqueda", "")
             filtrados = cobros
+            if cliente_filtro != "Todos":
+                filtrados = [c for c in filtrados if c.get("cliente_nombre") == cliente_filtro]
             if metodo_filtro != "Todos":
                 filtrados = [c for c in filtrados if c.get("metodo_pago") == metodo_filtro]
             if estado_filtro != "Todos":
