@@ -134,7 +134,9 @@ def render_presupuestos() -> None:
 
     empresa_id = st.session_state.get("billing_empresa_id", "")
     empresa_nombre = st.session_state.get("billing_empresa_nombre", "Mi Empresa")
-    presupuestos = get_presupuestos(empresa_id)
+
+    with st.spinner("Cargando presupuestos..."):
+        presupuestos = get_presupuestos(empresa_id)
 
     tab1, tab2 = st.tabs(["Historial", "Nuevo presupuesto"])
 
@@ -176,8 +178,21 @@ def render_presupuestos() -> None:
                     use_container_width=True,
                 )
 
+            # Paginacion
+            _PAGE_SIZE = 15
+            total_pages = max(1, (len(filtrados) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+            if len(filtrados) > _PAGE_SIZE:
+                pg_cols = st.columns([3, 1])
+                with pg_cols[0]:
+                    page = st.selectbox("Pagina", options=list(range(1, total_pages + 1)), key="pres_page") - 1
+                with pg_cols[1]:
+                    st.caption(f"Mostrando {min(_PAGE_SIZE, len(filtrados) - page * _PAGE_SIZE)} de {len(filtrados)}")
+            else:
+                page = 0
+            paginated = filtrados[page * _PAGE_SIZE:(page + 1) * _PAGE_SIZE]
+
             with st.container(height=610, border=False):
-                for p in filtrados:
+                for p in paginated:
                     pid = p.get("id")
                     with st.container(border=True):
                         c1, c2, c3 = st.columns([3, 1.3, 1.7])

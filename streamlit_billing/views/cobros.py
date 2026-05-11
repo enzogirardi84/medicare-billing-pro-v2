@@ -143,11 +143,13 @@ def render_cobros() -> None:
 
     empresa_id = st.session_state.get("billing_empresa_id", "")
     empresa_nombre = st.session_state.get("billing_empresa_nombre", "Mi Empresa")
-    cobros = get_cobros(empresa_id)
-    prefacturas_por_id = {
-        str(p.get("id", "")): p
-        for p in enriquecer_prefacturas_con_saldo(get_prefacturas(empresa_id), cobros)
-    }
+
+    with st.spinner("Cargando cobros..."):
+        cobros = get_cobros(empresa_id)
+        prefacturas_por_id = {
+            str(p.get("id", "")): p
+            for p in enriquecer_prefacturas_con_saldo(get_prefacturas(empresa_id), cobros)
+        }
 
     tab1, tab2 = st.tabs(["Historial", "Nuevo cobro"])
 
