@@ -46,13 +46,8 @@ def _main():
         st.caption("2026 Medicare Pro Suite")
         st.caption("[Documentacion](https://github.com/enzogirardi84/medicare-pro-v2)")
 
-    st.title("Medicare Billing Pro")
+    st.markdown("<h1 style='margin-bottom:0.15rem;'>Medicare Billing Pro</h1>", unsafe_allow_html=True)
     st.caption(f"Facturacion medica profesional | {empresa_nombre}")
-    status = "Supabase activo" if supabase else "Supabase requerido"
-    if supabase:
-        st.success(status)
-    else:
-        st.warning(status)
 
     MODULOS = {
         "Resumen": "dashboard",
@@ -79,39 +74,44 @@ def _main():
     cobros_total = sum(float(c.get("monto", 0) or 0) for c in cobros_resumen)
     pendiente_total = total_saldo_prefacturas(prefacturas_resumen, cobros_resumen)
 
-    kpi_cols = st.columns(6)
-    kpis = [
-        ("Clientes", len(clientes_resumen)),
-        ("Presupuestos", len(presupuestos_resumen)),
-        ("Pre-facturas", len(prefacturas_resumen)),
-        ("Facturas ARCA", len(facturas_arca_resumen)),
-        ("Cobrado", fmt_moneda(cobros_total)),
-        ("Pendiente", fmt_moneda(pendiente_total)),
+    # KPI cards estilizadas
+    kpi_data = [
+        ("Clientes", len(clientes_resumen), "#3b82f6"),
+        ("Presupuestos", len(presupuestos_resumen), "#8b5cf6"),
+        ("Pre-facturas", len(prefacturas_resumen), "#f59e0b"),
+        ("Facturas ARCA", len(facturas_arca_resumen), "#10b981"),
+        ("Cobrado", fmt_moneda(cobros_total), "#14b8a6"),
+        ("Pendiente", fmt_moneda(pendiente_total), "#ef4444"),
     ]
-    for col, (label, value) in zip(kpi_cols, kpis):
+    kpi_cols = st.columns(6)
+    for col, (label, value, color) in zip(kpi_cols, kpi_data):
         with col:
-            st.metric(label=label, value=value)
+            with st.container(border=True):
+                st.markdown(
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-size:0.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;'>{label}</div>"
+                    f"<div style='font-size:1.6rem;font-weight:700;color:{color};'>{value}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
 
-    cols = st.columns(len(MODULOS))
+    # Navegacion tipo pills
+    st.markdown("---")
+    nav_cols = st.columns(len(MODULOS))
     for i, label in enumerate(MODULOS):
-        with cols[i]:
-            if st.button(
-                label,
-                key=f"nav_{label}",
-                use_container_width=True,
-                type="primary" if modulo_activo == label else "secondary",
-            ):
+        with nav_cols[i]:
+            is_active = modulo_activo == label
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(label, key=f"nav_{label}", use_container_width=True, type=btn_type):
                 st.session_state["billing_modulo_activo"] = label
                 st.rerun()
+    st.markdown("---")
 
-    st.divider()
-
+    # Banner de estado minimalista
     if not supabase:
-        st.error(
-            "Supabase no esta conectado. Configura SUPABASE_URL, SUPABASE_KEY y SUPABASE_SERVICE_ROLE_KEY."
-        )
+        st.warning("Modo local activo. Conecta Supabase para persistencia en la nube.", icon="☁️")
     elif ALLOW_LOCAL_FALLBACK and LOCAL_DATA_PATH.exists():
-        st.info("Modo respaldo local habilitado. En produccion usa BILLING_ALLOW_LOCAL_FALLBACK=false.")
+        st.success("Supabase conectado. Modo respaldo local habilitado.", icon="✅")
 
     modulo_key = MODULOS.get(modulo_activo, "dashboard")
 

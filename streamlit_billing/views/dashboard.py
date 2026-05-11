@@ -128,49 +128,61 @@ def render_dashboard() -> None:
         if str(p.get("valido_hasta", ""))[:10] and str(p.get("valido_hasta", ""))[:10] >= date.today().isoformat()
     ]
 
-    st.markdown("## Resumen")
+    st.markdown("## 📊 Resumen ejecutivo")
     st.caption(f"Vista de control para {_month_label(current_month)}.")
 
+    # KPI cards del dashboard
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Cobrado este mes", fmt_moneda(total_cobrado_mes))
-    k2.metric("Pendiente de cobro", fmt_moneda(total_pendiente))
-    k3.metric("Presupuestos abiertos", len(presupuestos_abiertos))
-    k4.metric("Conversion presupuestos", f"{conversion:.0f}%")
+    for col, title, value, color in [
+        (k1, "Cobrado este mes", fmt_moneda(total_cobrado_mes), "#14b8a6"),
+        (k2, "Pendiente de cobro", fmt_moneda(total_pendiente), "#ef4444"),
+        (k3, "Presupuestos abiertos", str(len(presupuestos_abiertos)), "#f59e0b"),
+        (k4, "Conversion presupuestos", f"{conversion:.0f}%", "#8b5cf6"),
+    ]:
+        with col:
+            with st.container(border=True):
+                st.markdown(
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem;'>{title}</div>"
+                    f"<div style='font-size:1.45rem;font-weight:700;color:{color};'>{value}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
 
+    st.markdown("<div style='margin-top:0.75rem;'></div>", unsafe_allow_html=True)
     st.progress(cumplimiento, text=f"Cobrado sobre pre-facturado del mes: {cumplimiento * 100:.0f}%")
     if prefacturas_vencidas:
-        st.warning(
-            f"Hay {len(prefacturas_vencidas)} pre-factura(s) vencida(s) con saldo por "
-            f"{fmt_moneda(sum(_money(p.get('saldo')) for p in prefacturas_vencidas))}."
+        monto_vencido = sum(_money(p.get('saldo')) for p in prefacturas_vencidas)
+        st.error(
+            f"⚠️ Hay **{len(prefacturas_vencidas)}** pre-factura(s) vencida(s) con saldo por "
+            f"**{fmt_moneda(monto_vencido)}**."
         )
     elif total_pendiente > 0:
-        st.info(f"Hay saldo pendiente por {fmt_moneda(total_pendiente)}, sin vencimientos atrasados.")
+        st.info(f"ℹ️ Hay saldo pendiente por {fmt_moneda(total_pendiente)}, sin vencimientos atrasados.")
     else:
-        st.success("Cartera al dia: no hay saldos pendientes.")
+        st.success("✅ Cartera al dia: no hay saldos pendientes.")
     if presupuestos_por_vencer:
-        st.caption(f"Presupuestos abiertos vigentes: {len(presupuestos_por_vencer)}.")
+        st.caption(f"📋 Presupuestos abiertos vigentes: {len(presupuestos_por_vencer)}.")
 
-    st.markdown("### Accesos rapidos")
+    st.markdown("### ⚡ Accesos rapidos")
     c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        if st.button("Nuevo cliente", use_container_width=True):
-            _set_module("Clientes fiscales")
-    with c2:
-        if st.button("Nuevo presupuesto", use_container_width=True):
-            _set_module("Presupuestos")
-    with c3:
-        if st.button("Nueva pre-factura", use_container_width=True):
-            _set_module("Pre-facturas")
-    with c4:
-        if st.button("Registrar cobro", use_container_width=True):
-            _set_module("Cobros")
+    acciones = [
+        (c1, "Nuevo cliente", "Clientes fiscales", "#3b82f6"),
+        (c2, "Nuevo presupuesto", "Presupuestos", "#8b5cf6"),
+        (c3, "Nueva pre-factura", "Pre-facturas", "#f59e0b"),
+        (c4, "Registrar cobro", "Cobros", "#14b8a6"),
+    ]
+    for col, label, target, color in acciones:
+        with col:
+            if st.button(label, use_container_width=True, type="secondary"):
+                _set_module(target)
 
     st.divider()
     left, right = st.columns([1.05, 0.95], gap="large")
 
     with left:
-        st.markdown("### Pendientes de cobro")
-        with st.container(height=250, border=True):
+        st.markdown("### 💰 Pendientes de cobro")
+        with st.container(height=280, border=True):
             if not prefacturas_pendientes:
                 bloque_estado_vacio(
                     "Sin pendientes",
@@ -192,10 +204,10 @@ def render_dashboard() -> None:
                             "Saldo": fmt_moneda(item.get("saldo", 0)),
                         }
                     )
-                st.dataframe(rows, use_container_width=True, hide_index=True, height=185)
+                st.dataframe(rows, use_container_width=True, hide_index=True, height=215)
 
-        st.markdown("### Meses con cobros")
-        with st.container(height=220, border=True):
+        st.markdown("### 📈 Meses con cobros")
+        with st.container(height=280, border=True):
             if not cobros:
                 bloque_estado_vacio("Sin cobros", "Todavia no hay cobros registrados.")
             else:
@@ -217,7 +229,7 @@ def render_dashboard() -> None:
                     st.bar_chart(chart_rows, x="Mes", y="Cobrado", height=180)
 
     with right:
-        st.markdown("### Actividad reciente")
+        st.markdown("### 🔔 Actividad reciente")
         with st.container(height=520, border=True):
             recent = _recent_activity(presupuestos, prefacturas, cobros)
             if not recent:
@@ -226,21 +238,26 @@ def render_dashboard() -> None:
                     "Cuando cargues clientes, presupuestos, pre-facturas o cobros, van a aparecer aca.",
                 )
             else:
-                for row in recent:
+                for row in recent[:15]:
+                    tipo_icon = {"Presupuesto": "📋", "Pre-factura": "📄", "Cobro": "💵"}.get(row.get("tipo", ""), "•")
                     with st.container(border=True):
-                        st.caption(f"{fmt_fecha(row.get('fecha', ''))} | {row.get('tipo', '')}")
+                        st.caption(f"{fmt_fecha(row.get('fecha', ''))} | {tipo_icon} {row.get('tipo', '')}")
                         st.markdown(f"**{row.get('cliente') or 'Sin cliente'}**")
                         detail = str(row.get("detalle") or "").strip()
                         if detail:
                             st.caption(detail)
                         st.markdown(f"**{fmt_moneda(row.get('importe', 0))}**")
 
-        st.markdown("### Calidad de datos")
+        st.markdown("### 🏷️ Calidad de datos")
         checks = [
-            ("Clientes cargados", len(clientes) > 0),
-            ("Hay presupuestos", len(presupuestos) > 0),
-            ("Hay pre-facturas", len(prefacturas) > 0),
-            ("Hay cobros", len(cobros) > 0),
+            ("Clientes cargados", len(clientes) > 0, "#3b82f6"),
+            ("Hay presupuestos", len(presupuestos) > 0, "#8b5cf6"),
+            ("Hay pre-facturas", len(prefacturas) > 0, "#f59e0b"),
+            ("Hay cobros", len(cobros) > 0, "#14b8a6"),
         ]
-        for label, ok in checks:
-            st.caption(f"{'OK' if ok else 'Pendiente'} - {label}")
+        for label, ok, color in checks:
+            icon = "✅" if ok else "⏳"
+            st.markdown(
+                f"<span style='font-size:0.85rem;'>{icon} <strong>{label}</strong></span>",
+                unsafe_allow_html=True,
+            )
