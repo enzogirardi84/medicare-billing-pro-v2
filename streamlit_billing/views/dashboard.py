@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from html import escape
 from typing import Any, Dict, List
 import time
 
@@ -243,6 +244,55 @@ def render_dashboard() -> None:
                     estado_counts[est] = estado_counts.get(est, 0) + 1
                 estado_chart = [{"Estado": k, "Cantidad": v} for k, v in sorted(estado_counts.items(), key=lambda x: -x[1])]
                 st.bar_chart(estado_chart, x="Estado", y="Cantidad", height=260)
+
+    # Métricas avanzadas
+    st.divider()
+    st.markdown("### 📈 Métricas avanzadas")
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        with st.container(border=True):
+            st.markdown("<div style='font-size:0.75rem;color:#94a3b8;text-transform:uppercase;'>Cliente principal (pre-facturado)</div>", unsafe_allow_html=True)
+            cliente_pref: Dict[str, float] = {}
+            for p in prefacturas_raw:
+                nombre = p.get("cliente_nombre", "Sin nombre")
+                cliente_pref[nombre] = cliente_pref.get(nombre, 0.0) + _money(p.get("total"))
+            if cliente_pref:
+                top_cliente = max(cliente_pref.items(), key=lambda x: x[1])
+                st.markdown(f"<div style='font-size:1.2rem;font-weight:700;'>{escape(top_cliente[0])}</div>", unsafe_allow_html=True)
+                st.caption(f"{fmt_moneda(top_cliente[1])} pre-facturado")
+            else:
+                st.caption("Sin datos")
+    with m2:
+        with st.container(border=True):
+            st.markdown("<div style='font-size:0.75rem;color:#94a3b8;text-transform:uppercase;'>Dias promedio de cobro</div>", unsafe_allow_html=True)
+            dias_cobro = []
+            for p in prefacturas_raw:
+                pid = str(p.get("id", ""))
+                fecha_pref = _parse_date(p.get("fecha"), date.min)
+                if fecha_pref == date.min:
+                    continue
+                # Primer cobro de esta pre-factura
+                cobros_pref = [c for c in cobros if str(c.get("prefactura_id")) == pid]
+                if cobros_pref:
+                    fecha_primero = min(_parse_date(c.get("fecha"), date.max) for c in cobros_pref)
+                    if fecha_primero != date.max:
+                        dias = (fecha_primero - fecha_pref).days
+                        if dias >= 0:
+                            dias_cobro.append(dias)
+            if dias_cobro:
+                promedio = sum(dias_cobro) / len(dias_cobro)
+                st.markdown(f"<div style='font-size:1.2rem;font-weight:700;'>{promedio:.0f} dias</div>", unsafe_allow_html=True)
+                st.caption(f"Basado en {len(dias_cobro)} cobros")
+            else:
+                st.caption("Sin datos")
+    with m3:
+        with st.container(border=True):
+            st.markdown("<div style='font-size:0.75rem;color:#94a3b8;text-transform:uppercase;'>Tasa de conversion (monto)</div>", unsafe_allow_html=True)
+            total_pres = sum(_money(p.get("total")) for p in presupuestos)
+            total_conv = sum(_money(p.get("total")) for p in presupuestos if _estado(p.get("estado")) in {"aceptado", "convertido"})
+            tasa_monto = (total_conv / total_pres * 100) if total_pres else 0
+            st.markdown(f"<div style='font-size:1.2rem;font-weight:700;'>{tasa_monto:.0f}%</div>", unsafe_allow_html=True)
+            st.caption(f"{fmt_moneda(total_conv)} de {fmt_moneda(total_pres)}")
 
     # Top 5 clientes por cobros
     st.divider()
