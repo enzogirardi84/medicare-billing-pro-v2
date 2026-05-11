@@ -24,6 +24,8 @@ LOCAL_COLLECTIONS = {
 supabase = None
 last_db_error = ""
 _supabase_disabled = False
+_supabase_disabled_at = 0.0
+RECONNECT_INTERVAL_SEC = 300  # 5 minutos
 
 try:
     from supabase import create_client, Client
@@ -41,14 +43,32 @@ except Exception as e:
 
 
 def _active_supabase():
-    """Devuelve el cliente supabase solo si no esta deshabilitado por 401."""
+    """Devuelve el cliente supabase, intentando reconectar si paso el intervalo."""
+    global _supabase_disabled, _supabase_disabled_at
     if _supabase_disabled:
-        return None
+        if time.time() - _supabase_disabled_at < RECONNECT_INTERVAL_SEC:
+            return None
+        # Intentar reconectar
+        try:
+            from supabase import create_client, Client
+            key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY
+            if SUPABASE_URL and key:
+                client = create_client(SUPABASE_URL, key)
+                # Test rapido: ping a health (sin tabla especifica, solo verificar que no lanze)
+                client.table("clientes").select("id", count="exact").limit(0).execute()
+                _supabase_disabled = False
+                _supabase_disabled_at = 0.0
+                log_event("db", "supabase_reconnected")
+                return client
+        except Exception as e:
+            _supabase_disabled_at = time.time()
+            log_event("db", f"supabase_reconnect_failed:{type(e).__name__}")
+            return None
     return supabase
 
 
 def _supabase_execute_with_retry(op_name: str, fn, attempts: int = 3, base_delay: float = 0.35):
-    global last_db_error, _supabase_disabled
+    global last_db_error, _supabase_disabled, _supabase_disabled_at
     if _supabase_disabled:
         log_event("db", f"{op_name}_supabase_skipped:ya_deshabilitado")
         raise RuntimeError("Supabase deshabilitado por clave invalida")
@@ -63,6 +83,7 @@ def _supabase_execute_with_retry(op_name: str, fn, attempts: int = 3, base_delay
             err_str = str(e).lower()
             if any(k in err_str for k in ("401", "invalid api key", "unauthorized", "jwt")):
                 _supabase_disabled = True
+                _supabase_disabled_at = time.time()
                 log_event("db", f"{op_name}_supabase_disabled:{type(e).__name__}")
                 raise
             time.sleep(base_delay * (i + 1))

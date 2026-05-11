@@ -45,6 +45,28 @@ def fmt_moneda_corto(monto: float | int | str | None) -> str:
     return f"${value:,.0f}"
 
 
+def validar_cuit(cuit: str) -> tuple[bool, str]:
+    """Valida CUIT/CUIL argentino (11 digitos + digito verificador)."""
+    cuit = re.sub(r"[^0-9]", "", str(cuit).strip())
+    if len(cuit) != 11:
+        return False, "El CUIT/CUIL debe tener exactamente 11 digitos numericos."
+    tipo = cuit[:2]
+    if tipo not in ("20", "23", "24", "27", "30", "33", "34"):
+        return False, f"Tipo de CUIT/CUIL no valido: {tipo}."
+    multiplicadores = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
+    suma = sum(int(cuit[i]) * multiplicadores[i] for i in range(10))
+    resto = suma % 11
+    if resto == 0:
+        dv = 0
+    elif resto == 1:
+        dv = 9 if tipo in ("20", "23", "24", "27") else 4
+    else:
+        dv = 11 - resto
+    if int(cuit[10]) != dv:
+        return False, f"Digito verificador invalido. Deberia ser {dv}."
+    return True, ""
+
+
 def fmt_fecha(fecha_str: str) -> str:
     if not fecha_str:
         return "-"

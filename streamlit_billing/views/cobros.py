@@ -43,6 +43,7 @@ def _sync_prefactura(prefactura_id: str) -> bool:
 
 
 def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None:
+    es_edicion = existing is not None
     clientes = get_clientes(st.session_state.get("billing_empresa_id", ""))
     cliente_opts = {c["nombre"]: c for c in clientes}
     if not cliente_opts:
@@ -54,33 +55,42 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
     cobros = get_cobros(empresa_id)
     prefacturas_pendientes = prefacturas_con_saldo(prefacturas, cobros)
     form_id = existing.get("id", "new") if existing else "new"
+    borrador_key = f"borrador_cobro_{form_id}"
+    borrador = st.session_state.get(borrador_key, {}) if not es_edicion else {}
+
+    def _v(field: str, default: str = "") -> str:
+        if es_edicion:
+            return existing.get(field, default)  # type: ignore[union-attr]
+        return borrador.get(field, default)
 
     with st.form(f"cobro_form_{form_id}", border=True):
         st.markdown(f"### {'Editar cobro' if existing else 'Nuevo cobro'}")
         c1, c2 = st.columns(2)
         names = list(cliente_opts.keys())
         with c1:
+            default_cliente = _v("cliente_nombre")
             cliente_sel = st.selectbox(
                 "Cliente *",
                 options=[""] + names,
-                index=names.index(existing.get("cliente_nombre", "")) + 1
-                if existing and existing.get("cliente_nombre") in cliente_opts
+                index=names.index(default_cliente) + 1
+                if default_cliente in cliente_opts
                 else 0,
             )
         with c2:
-            fecha = st.date_input("Fecha de cobro", value=_parse_date(existing.get("fecha") if existing else "", date.today()))
+            fecha = st.date_input("Fecha de cobro", value=_parse_date(_v("fecha"), date.today()))
 
         c3, c4 = st.columns(2)
         with c3:
-            monto = st.number_input("Monto $ *", min_value=0.0, value=float(existing.get("monto", 0) or 0) if existing else 0.0, step=100.0)
+            monto = st.number_input("Monto $ *", min_value=0.0, value=float(_v("monto", "0") or 0), step=100.0)
         with c4:
+            default_metodo = _v("metodo_pago", "Efectivo")
             metodo = st.selectbox(
                 "Metodo de pago",
                 METODOS_PAGO,
-                index=METODOS_PAGO.index(existing.get("metodo_pago", "Efectivo")) if existing and existing.get("metodo_pago") in METODOS_PAGO else 0,
+                index=METODOS_PAGO.index(default_metodo) if default_metodo in METODOS_PAGO else 0,
             )
 
-        concepto = st.text_input("Concepto", value=existing.get("concepto", "") if existing else "", placeholder="Ej: Pago honorarios marzo 2026")
+        concepto = st.text_input("Concepto", value=_v("concepto"), placeholder="Ej: Pago honorarios marzo 2026")
         fac_opts = {
             (
                 f"{p.get('numero', '')} | {p.get('cliente_nombre', '')} | "
@@ -97,9 +107,24 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
                 f"Cobrado: {fmt_moneda(fac_preview.get('cobrado', 0))} | "
                 f"Saldo: {fmt_moneda(fac_preview.get('saldo', 0))}"
             )
-        notas = st.text_area("Notas", value=existing.get("notas", "") if existing else "", height=70)
+        notas = st.text_area("Notas", value=_v("notas"), height=70)
 
-        submitted = st.form_submit_button("Guardar cobro", use_container_width=True, type="primary")
+        sc1, sc2 = st.columns([1, 1])
+        with sc1:
+            submitted = st.form_submit_button("Guardar cobro", use_container_width=True, type="primary")
+        with sc2:
+            guardar_borrador = st.form_submit_button("💾 Guardar borrador", use_container_width=True)
+        if guardar_borrador:
+            st.session_state[borrador_key] = {
+                "cliente_nombre": cliente_sel,
+                "fecha": fecha.isoformat() if fecha else "",
+                "monto": str(monto),
+                "metodo_pago": metodo,
+                "concepto": concepto,
+                "notas": notas,
+            }
+            st.toast("Borrador guardado.")
+            st.rerun()
         if submitted:
             if not cliente_sel:
                 st.error("Selecciona un cliente.")
@@ -107,6 +132,7 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
             if monto <= 0:
                 st.error("El monto debe ser mayor a cero.")
                 return None
+            st.session_state.pop(borrador_key, None)
             cliente_data = cliente_opts.get(cliente_sel, {})
             data = {
                 "id": existing.get("id") if existing else generar_id(),

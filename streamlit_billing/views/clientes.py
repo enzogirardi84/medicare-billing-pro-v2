@@ -1,6 +1,7 @@
 """Vista de Clientes Fiscales."""
 from __future__ import annotations
 
+import re
 from typing import Any, Dict
 
 import streamlit as st
@@ -18,6 +19,7 @@ from core.utils import (
     normalize_document,
     normalize_phone,
     sanitize_filename,
+    validar_cuit,
 )
 
 CONDICIONES_FISCALES = [
@@ -32,26 +34,49 @@ CONDICIONES_FISCALES = [
 def _form_cliente(existing: Dict[str, Any] | None = None, clientes: list[Dict[str, Any]] | None = None) -> Dict[str, Any]:
     es_edicion = existing is not None
     form_key = existing.get("id", "new") if existing else "new"
+    borrador_key = f"borrador_cliente_{form_key}"
+    borrador = st.session_state.get(borrador_key, {}) if not es_edicion else {}
+
+    def _v(field: str, default: str = "") -> str:
+        if es_edicion:
+            return existing.get(field, default)  # type: ignore[union-attr]
+        return borrador.get(field, default)
+
     with st.form(f"cliente_form_{form_key}", border=True):
         st.markdown(f"### {'Editar cliente' if es_edicion else 'Nuevo cliente'}")
         c1, c2 = st.columns(2)
         with c1:
-            nombre = st.text_input("Nombre / Razon Social *", value=existing.get("nombre", "") if existing else "")
-            dni = st.text_input("DNI / CUIT *", value=existing.get("dni", "") if existing else "")
-            email = st.text_input("Email", value=existing.get("email", "") if existing else "")
+            nombre = st.text_input("Nombre / Razon Social *", value=_v("nombre"))
+            dni = st.text_input("DNI / CUIT *", value=_v("dni"))
+            email = st.text_input("Email", value=_v("email"))
         with c2:
-            telefono = st.text_input("Telefono", value=existing.get("telefono", "") if existing else "")
-            direccion = st.text_input("Direccion", value=existing.get("direccion", "") if existing else "")
+            telefono = st.text_input("Telefono", value=_v("telefono"))
+            direccion = st.text_input("Direccion", value=_v("direccion"))
+            default_cond = _v("condicion_fiscal", "Consumidor Final")
             condicion = st.selectbox(
                 "Condicion Fiscal",
                 options=CONDICIONES_FISCALES,
-                index=CONDICIONES_FISCALES.index(existing.get("condicion_fiscal", "Consumidor Final"))
-                if existing and existing.get("condicion_fiscal") in CONDICIONES_FISCALES
-                else 3,
+                index=CONDICIONES_FISCALES.index(default_cond) if default_cond in CONDICIONES_FISCALES else 3,
             )
-        notas = st.text_area("Notas", value=existing.get("notas", "") if existing else "", height=74)
+        notas = st.text_area("Notas", value=_v("notas"), height=74)
 
-        submitted = st.form_submit_button("Guardar cliente", use_container_width=True, type="primary")
+        sc1, sc2 = st.columns([1, 1])
+        with sc1:
+            submitted = st.form_submit_button("Guardar cliente", use_container_width=True, type="primary")
+        with sc2:
+            guardar_borrador = st.form_submit_button("💾 Guardar borrador", use_container_width=True)
+        if guardar_borrador:
+            st.session_state[borrador_key] = {
+                "nombre": nombre,
+                "dni": dni,
+                "email": email,
+                "telefono": telefono,
+                "direccion": direccion,
+                "condicion_fiscal": condicion,
+                "notas": notas,
+            }
+            st.toast("Borrador guardado.")
+            st.rerun()
         if submitted:
             nombre = nombre.strip()
             dni = normalize_document(dni)
@@ -62,6 +87,11 @@ def _form_cliente(existing: Dict[str, Any] | None = None, clientes: list[Dict[st
             if not is_valid_email(email):
                 st.error("El email no tiene un formato valido.")
                 return {}
+            if len(re.sub(r"[^0-9]", "", dni)) == 11:
+                ok, msg = validar_cuit(dni)
+                if not ok:
+                    st.error(f"CUIT/CUIL invalido: {msg}")
+                    return {}
             duplicado = next(
                 (
                     c
@@ -74,6 +104,7 @@ def _form_cliente(existing: Dict[str, Any] | None = None, clientes: list[Dict[st
             if duplicado:
                 st.error(f"Ya existe un cliente con ese DNI/CUIT: {duplicado.get('nombre', '')}.")
                 return {}
+            st.session_state.pop(borrador_key, None)
             return {
                 "id": existing.get("id") if existing else generar_id(),
                 "empresa_id": st.session_state.get("billing_empresa_id", ""),

@@ -23,6 +23,7 @@ def _parse_date(value: Any, default: date) -> date:
 
 
 def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None:
+    es_edicion = existing is not None
     clientes = get_clientes(st.session_state.get("billing_empresa_id", ""))
     cliente_opts = {c["nombre"]: c for c in clientes}
     if not cliente_opts:
@@ -31,46 +32,57 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
 
     base_items = existing.get("items", []) if existing else []
     form_id = existing.get("id", "new") if existing else "new"
+    borrador_key = f"borrador_prefactura_{form_id}"
+    borrador = st.session_state.get(borrador_key, {}) if not es_edicion else {}
+
     item_count = st.number_input(
         "Cantidad de conceptos",
         min_value=1,
         max_value=20,
-        value=max(1, len(base_items) or 1),
+        value=max(1, len(base_items) or borrador.get("item_count", 1) or 1),
         key=f"fac_item_count_{form_id}",
     )
+
+    # Setear defaults en session_state para widgets con key
+    for i in range(int(item_count)):
+        base = base_items[i] if i < len(base_items) and isinstance(base_items[i], dict) else {}
+        for field, default in [(f"fac_conc_{form_id}_{i}", base.get("concepto", "")),
+                                (f"fac_cant_{form_id}_{i}", float(base.get("cantidad", 1) or 1)),
+                                (f"fac_precio_{form_id}_{i}", float(base.get("precio_unitario", 0) or 0))]:
+            if field not in st.session_state:
+                st.session_state[field] = default
 
     with st.form(f"fac_form_{form_id}", border=True):
         st.markdown(f"### {'Editar pre-factura' if existing else 'Nueva pre-factura'}")
         c1, c2 = st.columns(2)
         names = list(cliente_opts.keys())
         with c1:
+            default_cliente = existing.get("cliente_nombre", "") if existing else borrador.get("cliente_nombre", "")
             cliente_sel = st.selectbox(
                 "Cliente *",
                 options=[""] + names,
-                index=names.index(existing.get("cliente_nombre", "")) + 1
-                if existing and existing.get("cliente_nombre") in cliente_opts
+                index=names.index(default_cliente) + 1
+                if default_cliente in cliente_opts
                 else 0,
             )
         with c2:
-            fecha = st.date_input("Fecha", value=_parse_date(existing.get("fecha") if existing else "", date.today()))
+            fecha = st.date_input("Fecha", value=_parse_date(existing.get("fecha") if existing else borrador.get("fecha", ""), date.today()))
 
         st.markdown("#### Conceptos")
         items = []
         for i in range(int(item_count)):
-            base = base_items[i] if i < len(base_items) and isinstance(base_items[i], dict) else {}
             ic1, ic2, ic3, ic4 = st.columns([3, 1, 1.2, 0.7])
             with ic1:
                 concepto = st.text_input(
                     "Concepto",
-                    value=base.get("concepto", ""),
                     key=f"fac_conc_{form_id}_{i}",
                     placeholder="Ej: Honorarios medicos marzo",
                     label_visibility="collapsed" if i > 0 else "visible",
                 )
             with ic2:
-                cantidad = st.number_input("Cant.", min_value=1.0, value=float(base.get("cantidad", 1) or 1), step=1.0, key=f"fac_cant_{form_id}_{i}", label_visibility="collapsed" if i > 0 else "visible")
+                cantidad = st.number_input("Cant.", min_value=1.0, step=1.0, key=f"fac_cant_{form_id}_{i}", label_visibility="collapsed" if i > 0 else "visible")
             with ic3:
-                precio = st.number_input("Precio $", min_value=0.0, value=float(base.get("precio_unitario", 0) or 0), step=100.0, key=f"fac_precio_{form_id}_{i}", label_visibility="collapsed" if i > 0 else "visible")
+                precio = st.number_input("Precio $", min_value=0.0, step=100.0, key=f"fac_precio_{form_id}_{i}", label_visibility="collapsed" if i > 0 else "visible")
             with ic4:
                 st.caption(fmt_moneda(cantidad * precio))
             if concepto.strip():
@@ -78,9 +90,22 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
 
         total = sum(float(it["cantidad"]) * float(it["precio_unitario"]) for it in items)
         st.markdown(f"**Total: {fmt_moneda(total)}**")
-        notas = st.text_area("Notas", value=existing.get("notas", "") if existing else "", height=70)
+        notas = st.text_area("Notas", value=existing.get("notas", "") if existing else borrador.get("notas", ""), height=70)
 
-        submitted = st.form_submit_button("Guardar pre-factura", use_container_width=True, type="primary")
+        sc1, sc2 = st.columns([1, 1])
+        with sc1:
+            submitted = st.form_submit_button("Guardar pre-factura", use_container_width=True, type="primary")
+        with sc2:
+            guardar_borrador = st.form_submit_button("💾 Guardar borrador", use_container_width=True)
+        if guardar_borrador:
+            st.session_state[borrador_key] = {
+                "cliente_nombre": cliente_sel,
+                "fecha": fecha.isoformat() if fecha else "",
+                "notas": notas,
+                "item_count": int(item_count),
+            }
+            st.toast("Borrador guardado.")
+            st.rerun()
         if submitted:
             if not cliente_sel:
                 st.error("Selecciona un cliente.")
@@ -91,6 +116,7 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
             if total <= 0:
                 st.error("El total debe ser mayor a cero.")
                 return None
+            st.session_state.pop(borrador_key, None)
             cliente_data = cliente_opts.get(cliente_sel, {})
             return {
                 "id": existing.get("id") if existing else generar_id(),

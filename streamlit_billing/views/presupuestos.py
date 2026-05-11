@@ -31,41 +31,58 @@ def _form_presupuesto(existing: Dict[str, Any] | None = None) -> Dict[str, Any] 
 
     base_items = existing.get("items", []) if existing else []
     form_id = existing.get("id", "new") if existing else "new"
+    borrador_key = f"borrador_presupuesto_{form_id}"
+    borrador = st.session_state.get(borrador_key, {}) if not es_edicion else {}
+
     item_count = st.number_input(
         "Cantidad de conceptos",
         min_value=1,
         max_value=20,
-        value=max(1, len(base_items) or 1),
+        value=max(1, len(base_items) or borrador.get("item_count", 1) or 1),
         key=f"pres_item_count_{form_id}",
     )
+
+    # Setear defaults en session_state para widgets con key
+    for i in range(int(item_count)):
+        base = base_items[i] if i < len(base_items) and isinstance(base_items[i], dict) else {}
+        for field, default in [(f"pres_conc_{form_id}_{i}", base.get("concepto", "")),
+                                (f"pres_cant_{form_id}_{i}", float(base.get("cantidad", 1) or 1)),
+                                (f"pres_precio_{form_id}_{i}", float(base.get("precio_unitario", 0) or 0))]:
+            if field not in st.session_state:
+                st.session_state[field] = default
 
     with st.form(f"pres_form_{form_id}", border=True):
         st.markdown(f"### {'Editar presupuesto' if es_edicion else 'Nuevo presupuesto'}")
         c1, c2, c3 = st.columns(3)
         cliente_names = list(cliente_opts.keys())
         with c1:
+            default_cliente = existing.get("cliente_nombre", "") if existing else borrador.get("cliente_nombre", "")
             cliente_sel = st.selectbox(
                 "Cliente *",
                 options=[""] + cliente_names,
-                index=cliente_names.index(existing.get("cliente_nombre", "")) + 1
-                if existing and existing.get("cliente_nombre") in cliente_opts
+                index=cliente_names.index(default_cliente) + 1
+                if default_cliente in cliente_opts
                 else 0,
             )
         with c2:
-            fecha = st.date_input("Fecha", value=_parse_date(existing.get("fecha") if existing else "", date.today()))
+            fecha = st.date_input(
+                "Fecha",
+                value=_parse_date(existing.get("fecha") if existing else borrador.get("fecha", ""), date.today()),
+            )
         with c3:
-            valido_default = _parse_date(existing.get("valido_hasta") if existing else "", fecha + timedelta(days=15))
+            valido_default = _parse_date(
+                existing.get("valido_hasta") if existing else borrador.get("valido_hasta", ""),
+                fecha + timedelta(days=15),
+            )
             valido = st.date_input("Valido hasta", value=valido_default)
 
         st.markdown("#### Conceptos")
         items = []
         for i in range(int(item_count)):
-            base = base_items[i] if i < len(base_items) and isinstance(base_items[i], dict) else {}
             ic1, ic2, ic3, ic4 = st.columns([3, 1, 1.2, 0.7])
             with ic1:
                 concepto = st.text_input(
                     "Concepto",
-                    value=base.get("concepto", ""),
                     key=f"pres_conc_{form_id}_{i}",
                     placeholder="Ej: Consulta cardiologica",
                     label_visibility="collapsed" if i > 0 else "visible",
@@ -74,7 +91,6 @@ def _form_presupuesto(existing: Dict[str, Any] | None = None) -> Dict[str, Any] 
                 cantidad = st.number_input(
                     "Cant.",
                     min_value=1.0,
-                    value=float(base.get("cantidad", 1) or 1),
                     step=1.0,
                     key=f"pres_cant_{form_id}_{i}",
                     label_visibility="collapsed" if i > 0 else "visible",
@@ -83,7 +99,6 @@ def _form_presupuesto(existing: Dict[str, Any] | None = None) -> Dict[str, Any] 
                 precio = st.number_input(
                     "Precio $",
                     min_value=0.0,
-                    value=float(base.get("precio_unitario", 0) or 0),
                     step=100.0,
                     key=f"pres_precio_{form_id}_{i}",
                     label_visibility="collapsed" if i > 0 else "visible",
@@ -95,9 +110,27 @@ def _form_presupuesto(existing: Dict[str, Any] | None = None) -> Dict[str, Any] 
 
         total = sum(float(it["cantidad"]) * float(it["precio_unitario"]) for it in items)
         st.markdown(f"**Total: {fmt_moneda(total)}**")
-        notas = st.text_area("Notas", value=existing.get("notas", "") if existing else "", height=70)
+        notas = st.text_area(
+            "Notas",
+            value=existing.get("notas", "") if existing else borrador.get("notas", ""),
+            height=70,
+        )
 
-        submitted = st.form_submit_button("Guardar presupuesto", use_container_width=True, type="primary")
+        sc1, sc2 = st.columns([1, 1])
+        with sc1:
+            submitted = st.form_submit_button("Guardar presupuesto", use_container_width=True, type="primary")
+        with sc2:
+            guardar_borrador = st.form_submit_button("💾 Guardar borrador", use_container_width=True)
+        if guardar_borrador:
+            st.session_state[borrador_key] = {
+                "cliente_nombre": cliente_sel,
+                "fecha": fecha.isoformat() if fecha else "",
+                "valido_hasta": valido.isoformat() if valido else "",
+                "notas": notas,
+                "item_count": int(item_count),
+            }
+            st.toast("Borrador guardado.")
+            st.rerun()
         if submitted:
             if not cliente_sel:
                 st.error("Selecciona un cliente.")
@@ -105,19 +138,14 @@ def _form_presupuesto(existing: Dict[str, Any] | None = None) -> Dict[str, Any] 
             if not items:
                 st.error("Agrega al menos un concepto.")
                 return None
-            if total <= 0:
-                st.error("El total debe ser mayor a cero.")
-                return None
-            if valido < fecha:
-                st.error("La fecha de validez no puede ser anterior a la fecha del presupuesto.")
-                return None
-            cliente_data = cliente_opts.get(cliente_sel, {})
+            st.session_state.pop(borrador_key, None)
+            cliente_data = cliente_opts[cliente_sel]
             return {
                 "id": existing.get("id") if existing else generar_id(),
                 "empresa_id": st.session_state.get("billing_empresa_id", ""),
-                "numero": existing.get("numero") if existing else f"PRES-{generar_id()[:6].upper()}",
                 "cliente_id": cliente_data.get("id", ""),
                 "cliente_nombre": cliente_sel,
+                "cliente_dni": cliente_data.get("dni", ""),
                 "fecha": fecha.isoformat(),
                 "valido_hasta": valido.isoformat(),
                 "items": items,
@@ -211,11 +239,43 @@ def render_presupuestos() -> None:
                 page = 0
             paginated = filtrados[page * _PAGE_SIZE:(page + 1) * _PAGE_SIZE]
 
+            # Bulk actions
+            if paginated:
+                ba1, ba2, ba3 = st.columns([1.5, 1.5, 1])
+                with ba1:
+                    bulk_estado = st.selectbox("Accion masiva", ["—"] + ESTADOS_PRESUPUESTO, key="pres_bulk_estado")
+                with ba2:
+                    st.markdown("<div style='height:1.7rem;'></div>", unsafe_allow_html=True)
+                    if st.button("Aplicar a seleccionados", key="pres_bulk_apply", use_container_width=True, disabled=(bulk_estado == "—")):
+                        seleccionados = [p for p in paginated if st.session_state.get(f"sel_pres_{p.get('id')}", False)]
+                        if seleccionados:
+                            ok_count = 0
+                            for p in seleccionados:
+                                updated = dict(p)
+                                updated["estado"] = bulk_estado
+                                if upsert_presupuesto(updated):
+                                    ok_count += 1
+                            st.toast(f"{ok_count} presupuesto(s) actualizado(s) a {bulk_estado}.")
+                            st.rerun()
+                        else:
+                            st.warning("No seleccionaste ningun presupuesto.")
+                with ba3:
+                    st.markdown("<div style='height:1.7rem;'></div>", unsafe_allow_html=True)
+                    if st.button("Limpiar seleccion", key="pres_bulk_clear", use_container_width=True):
+                        for p in paginated:
+                            st.session_state[f"sel_pres_{p.get('id')}"] = False
+                        st.rerun()
+
             with st.container(height=610, border=False):
                 for p in paginated:
                     pid = p.get("id")
                     with st.container(border=True):
+<<<<<<< HEAD
                         c1, c2 = st.columns([4.2, 1.4])
+=======
+                        st.checkbox("Seleccionar", key=f"sel_pres_{pid}", value=st.session_state.get(f"sel_pres_{pid}", False))
+                        c1, c2, c3 = st.columns([3, 1.3, 1.7])
+>>>>>>> c9407c5 (feat: validacion CUIT/CUIL, auto-guardado borradores en todos los formularios, reconexion automatica Supabase, bulk actions en presupuestos, boton refrescar datos)
                         with c1:
                             st.markdown(f"**{p.get('numero', '-')}** | {p.get('cliente_nombre', '-')}")
                             st.caption(f"{fmt_fecha(p.get('fecha', ''))} | Vence: {fmt_fecha(p.get('valido_hasta', ''))} | {fmt_moneda(p.get('total', 0))}")

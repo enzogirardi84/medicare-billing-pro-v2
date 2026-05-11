@@ -322,6 +322,13 @@ def _main():
     elif ALLOW_LOCAL_FALLBACK and LOCAL_DATA_PATH.exists():
         st.success("Supabase conectado. Modo respaldo local habilitado.")
 
+    if st.button("🔄 Refrescar datos", use_container_width=True, key="refresh_all_data"):
+        for key in list(st.session_state.keys()):
+            if key.startswith(("cache_", "borrador_")):
+                del st.session_state[key]
+        st.toast("Cache limpiado. Recargando datos...")
+        st.rerun()
+
     modulo_key = MODULOS.get(modulo_activo, "dashboard")
 
     if modulo_key == "dashboard":
