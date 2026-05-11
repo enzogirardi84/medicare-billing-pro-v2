@@ -247,6 +247,17 @@ def render_clientes() -> None:
                         with c2:
                             saldo_cliente = sum(money(p.get("saldo")) for p in cli_pref)
                             st.metric("Saldo", fmt_moneda(saldo_cliente))
+                            # Saldo vencido
+                            from datetime import date
+                            vencidas = [
+                                p for p in cli_pref
+                                if str(p.get("estado", "")) in ("Pendiente", "Parcial")
+                                and str(p.get("vencimiento", ""))[:10]
+                                and date.fromisoformat(str(p.get("vencimiento"))[:10]) < date.today()
+                            ]
+                            if vencidas:
+                                monto_vencido = sum(money(p.get("saldo")) for p in vencidas)
+                                st.error(f"⚠️ {len(vencidas)} vencida(s): {fmt_moneda(monto_vencido)}")
 
                         a1, a2, a3, a4 = st.columns([1.3, 1.1, 1.5, 1.1])
                         with a1:

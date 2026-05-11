@@ -270,12 +270,10 @@ def render_presupuestos() -> None:
                 for p in paginated:
                     pid = p.get("id")
                     with st.container(border=True):
-<<<<<<< HEAD
-                        c1, c2 = st.columns([4.2, 1.4])
-=======
+
                         st.checkbox("Seleccionar", key=f"sel_pres_{pid}", value=st.session_state.get(f"sel_pres_{pid}", False))
                         c1, c2, c3 = st.columns([3, 1.3, 1.7])
->>>>>>> c9407c5 (feat: validacion CUIT/CUIL, auto-guardado borradores en todos los formularios, reconexion automatica Supabase, bulk actions en presupuestos, boton refrescar datos)
+
                         with c1:
                             st.markdown(f"**{p.get('numero', '-')}** | {p.get('cliente_nombre', '-')}")
                             st.caption(f"{fmt_fecha(p.get('fecha', ''))} | Vence: {fmt_fecha(p.get('valido_hasta', ''))} | {fmt_moneda(p.get('total', 0))}")
