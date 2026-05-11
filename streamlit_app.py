@@ -11,9 +11,13 @@ if str(billing_path) not in sys.path:
 # Import and run the billing app with error handling
 try:
     import billing_app
+    billing_app.run_app()
 except Exception:
     import streamlit as st
-    st.set_page_config(page_title="Error - Medicare Billing Pro")
+    try:
+        st.set_page_config(page_title="Error - Medicare Billing Pro")
+    except Exception:
+        pass
     st.error("Error al iniciar la app. Detalles:")
     st.code(traceback.format_exc())
     st.stop()

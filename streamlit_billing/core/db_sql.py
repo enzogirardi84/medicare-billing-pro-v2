@@ -29,20 +29,9 @@ try:
     from supabase import create_client, Client
     supabase_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY
     if SUPABASE_URL and supabase_key:
-        _client: Client = create_client(SUPABASE_URL, supabase_key)
-        # Verificar conexion con health-check rapido
-        try:
-            _client.table("usuarios").select("count", count="exact").limit(1).execute()
-            supabase = _client
-        except Exception as e:
-            err_str = str(e).lower()
-            if any(k in err_str for k in ("401", "invalid api key", "unauthorized", "apierror")):
-                log_event("db", "supabase_clave_invalida_401_usando_modo_local")
-                supabase = None
-                _supabase_disabled = True
-            else:
-                log_event("db", f"supabase_health_check_warn:{type(e).__name__}")
-                supabase = _client
+        # No ejecutar consultas durante el import: en Streamlit Cloud eso puede
+        # bloquear el arranque y dejar la app reiniciando antes de pintar login.
+        supabase: Client = create_client(SUPABASE_URL, supabase_key)
 except ImportError:
     log_event("db", "supabase no disponible")
     _supabase_disabled = True
@@ -59,7 +48,7 @@ def _active_supabase():
 
 
 def _supabase_execute_with_retry(op_name: str, fn, attempts: int = 3, base_delay: float = 0.35):
-    global last_db_error
+    global last_db_error, _supabase_disabled
     last_error = None
     for i in range(attempts):
         try:
@@ -68,6 +57,11 @@ def _supabase_execute_with_retry(op_name: str, fn, attempts: int = 3, base_delay
         except Exception as e:
             last_error = e
             last_db_error = str(e)
+            err_str = str(e).lower()
+            if any(k in err_str for k in ("401", "invalid api key", "unauthorized", "jwt")):
+                _supabase_disabled = True
+                log_event("db", f"{op_name}_supabase_disabled:{type(e).__name__}")
+                raise
             time.sleep(base_delay * (i + 1))
     raise last_error
 

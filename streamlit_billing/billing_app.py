@@ -144,8 +144,13 @@ def _main():
         render_configuracion()
 
 
-try:
-    _main()
-except Exception:
-    st.error("Error en la aplicacion. Detalles tecnicos:")
-    st.code(traceback.format_exc())
+def run_app() -> None:
+    try:
+        _main()
+    except Exception:
+        st.error("Error en la aplicacion. Detalles tecnicos:")
+        st.code(traceback.format_exc())
+
+
+if __name__ == "__main__":
+    run_app()
