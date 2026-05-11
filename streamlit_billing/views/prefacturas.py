@@ -1,7 +1,7 @@
 """Vista de Pre-facturas."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Dict
 
 import streamlit as st
@@ -67,6 +67,16 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
             )
         with c2:
             fecha = st.date_input("Fecha", value=_parse_date(existing.get("fecha") if existing else borrador.get("fecha", ""), date.today()))
+        c3, c4 = st.columns(2)
+        with c3:
+            vencimiento_default = _parse_date(
+                existing.get("vencimiento") if existing else borrador.get("vencimiento", ""),
+                fecha + timedelta(days=30),
+            )
+            vencimiento = st.date_input("Vencimiento", value=vencimiento_default)
+        with c4:
+            st.markdown("<div style='height:1.7rem;'></div>", unsafe_allow_html=True)
+            st.caption(f"Vence: {vencimiento.isoformat()}")
 
         st.markdown("#### Conceptos")
         # Headers
@@ -112,6 +122,7 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
             st.session_state[borrador_key] = {
                 "cliente_nombre": cliente_sel,
                 "fecha": fecha.isoformat() if fecha else "",
+                "vencimiento": vencimiento.isoformat() if vencimiento else "",
                 "notas": notas,
                 "item_count": int(item_count),
             }
@@ -139,6 +150,7 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
                 "cliente_nombre": cliente_sel,
                 "cliente_dni": cliente_data.get("dni", ""),
                 "fecha": fecha.isoformat(),
+                "vencimiento": vencimiento.isoformat() if vencimiento else "",
                 "items": items,
                 "total": total,
                 "estado": existing.get("estado", "Pendiente") if existing else "Pendiente",
@@ -246,7 +258,9 @@ def render_prefacturas() -> None:
                         c1, c2 = st.columns([4.2, 1.4])
                         with c1:
                             st.markdown(f"**{p.get('numero', '-')}** | {p.get('cliente_nombre', '-')}")
-                            st.caption(f"DNI/CUIT: {p.get('cliente_dni', '-')} | {fmt_fecha(p.get('fecha', ''))}")
+                            venc_str = fmt_fecha(p.get('vencimiento', ''))
+                            venc_badge = f" | Vence: {venc_str}" if venc_str else ""
+                            st.caption(f"DNI/CUIT: {p.get('cliente_dni', '-')}{venc_badge} | {fmt_fecha(p.get('fecha', ''))}")
                             st.caption(
                                 f"Total: {fmt_moneda(p.get('total', 0))} | "
                                 f"Cobrado: {fmt_moneda(p.get('cobrado', 0))} | "
@@ -254,6 +268,13 @@ def render_prefacturas() -> None:
                             )
                             if p.get("estado_calculado") and p.get("estado_calculado") != p.get("estado"):
                                 st.caption(f"Estado sugerido por cobros: {p.get('estado_calculado')}")
+                            # Alerta vencida
+                            try:
+                                if p.get("vencimiento") and p.get("estado") in ("Pendiente", "Parcial"):
+                                    if date.fromisoformat(str(p.get("vencimiento"))[:10]) < date.today():
+                                        st.error(f"⚠️ Vencida el {venc_str}")
+                            except Exception:
+                                pass
                         with c2:
                             nuevo_estado = st.selectbox(
                                 "Estado",
