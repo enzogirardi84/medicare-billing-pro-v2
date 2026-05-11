@@ -313,6 +313,7 @@ def render_prefacturas() -> None:
                                     "cliente_nombre": p.get("cliente_nombre", ""),
                                     "cliente_dni": p.get("cliente_dni", ""),
                                     "fecha": hoy().isoformat(),
+                                    "vencimiento": (hoy() + timedelta(days=30)).isoformat(),
                                     "items": p.get("items", []),
                                     "total": p.get("total", 0),
                                     "estado": "Pendiente",

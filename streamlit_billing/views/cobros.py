@@ -91,6 +91,9 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
             )
 
         concepto = st.text_input("Concepto", value=_v("concepto"), placeholder="Ej: Pago honorarios marzo 2026")
+        # Incluir pre-factura vinculada actual (si existe) aunque ya no este pendiente
+        fac_linked_id = str(existing.get("prefactura_id", "")) if existing else ""
+        fac_linked = next((p for p in prefacturas if str(p.get("id")) == fac_linked_id), None)
         fac_opts = {
             (
                 f"{p.get('numero', '')} | {p.get('cliente_nombre', '')} | "
@@ -98,6 +101,8 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
             ): p
             for p in prefacturas_pendientes
         }
+        if fac_linked and fac_linked_id not in {str(p.get("id")) for p in prefacturas_pendientes}:
+            fac_opts[f"{fac_linked.get('numero', '')} | {fac_linked.get('cliente_nombre', '')} | Saldo {fmt_moneda(fac_linked.get('saldo', 0))} (vinculada)"] = fac_linked
         fac_sel = st.selectbox("Vincular a pre-factura (opcional)", options=["Ninguna"] + list(fac_opts.keys())) if fac_opts else "Ninguna"
         if fac_sel != "Ninguna":
             fac_preview = fac_opts.get(fac_sel, {})
@@ -311,9 +316,9 @@ def render_cobros() -> None:
                                         if delete_cobro(cid):
                                             if prefactura_id and not _sync_prefactura(prefactura_id):
                                                 mostrar_error_db("recalcular la pre-factura vinculada")
-                                                return
-                                            st.toast("Cobro eliminado.")
-                                            st.rerun()
+                                            else:
+                                                st.toast("Cobro eliminado.")
+                                                st.rerun()
                                         else:
                                             mostrar_error_db("eliminar el cobro")
 
