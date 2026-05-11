@@ -64,7 +64,12 @@ def _form_factura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | No
         with c3:
             concepto_arca = st.selectbox("Concepto ARCA", CONCEPTOS, index=CONCEPTOS.index((existing or {}).get("concepto_arca", "Servicios")) if (existing or {}).get("concepto_arca") in CONCEPTOS else 1)
         with c4:
-            fecha = st.date_input("Fecha", value=date.fromisoformat(str((existing or {}).get("fecha", date.today().isoformat()))[:10]))
+            fecha_raw = str((existing or {}).get("fecha", date.today().isoformat()))[:10]
+            try:
+                fecha_default = date.fromisoformat(fecha_raw)
+            except Exception:
+                fecha_default = date.today()
+            fecha = st.date_input("Fecha", value=fecha_default)
 
         c5, c6 = st.columns(2)
         with c5:

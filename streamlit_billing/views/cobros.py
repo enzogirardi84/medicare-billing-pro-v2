@@ -147,6 +147,7 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
         with sc2:
             guardar_borrador = st.form_submit_button("💾 Guardar borrador", use_container_width=True)
         if guardar_borrador:
+            fac_data = fac_opts.get(fac_sel, {}) if fac_sel != "Ninguna" else {}
             st.session_state[borrador_key] = {
                 "cliente_nombre": cliente_sel,
                 "fecha": fecha.isoformat() if fecha else "",
@@ -154,6 +155,7 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
                 "metodo_pago": metodo,
                 "concepto": concepto,
                 "notas": notas,
+                "prefactura_id": str(fac_data.get("id", "")) if fac_data else "",
             }
             st.toast("Borrador guardado.")
             st.rerun()

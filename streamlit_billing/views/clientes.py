@@ -249,11 +249,17 @@ def render_clientes() -> None:
                             saldo_cliente = sum(money(p.get("saldo")) for p in cli_pref)
                             st.metric("Saldo", fmt_moneda(saldo_cliente))
                             # Saldo vencido
+                            def _es_vencida(vencimiento):
+                                try:
+                                    return date.fromisoformat(str(vencimiento)[:10]) < date.today()
+                                except Exception:
+                                    return False
+
                             vencidas = [
                                 p for p in cli_pref
                                 if str(p.get("estado", "")) in ("Pendiente", "Parcial")
                                 and str(p.get("vencimiento", ""))[:10]
-                                and date.fromisoformat(str(p.get("vencimiento"))[:10]) < date.today()
+                                and _es_vencida(p.get("vencimiento"))
                             ]
                             if vencidas:
                                 monto_vencido = sum(money(p.get("saldo")) for p in vencidas)
