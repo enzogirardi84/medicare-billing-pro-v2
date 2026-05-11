@@ -35,9 +35,14 @@ def render_configuracion() -> None:
                     CONDICIONES_IVA,
                     index=CONDICIONES_IVA.index(config.get("condicion_iva", "Monotributista")) if config.get("condicion_iva") in CONDICIONES_IVA else 1,
                 )
+                _inicio_raw = str(config.get("inicio_actividades", ""))[:10]
+                try:
+                    _inicio_default = date.fromisoformat(_inicio_raw) if _inicio_raw else date.today()
+                except Exception:
+                    _inicio_default = date.today()
                 inicio = st.date_input(
                     "Inicio actividades",
-                    value=date.fromisoformat(str(config.get("inicio_actividades", date.today().isoformat()))[:10]) if config.get("inicio_actividades") else date.today(),
+                    value=_inicio_default,
                 )
             with c2:
                 domicilio = st.text_input("Domicilio fiscal", value=config.get("domicilio_fiscal", ""))

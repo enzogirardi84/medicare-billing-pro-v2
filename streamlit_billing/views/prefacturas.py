@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any, Dict
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -303,6 +304,11 @@ def render_prefacturas() -> None:
                                     key=f"pdf_fac_{pid}",
                                     use_container_width=True,
                                 )
+                            _msg_fac = f"Hola {p.get('cliente_nombre', '')}, le comparto la pre-factura {p.get('numero', '')} por {fmt_moneda(p.get('total', 0))}. Vence el {fmt_fecha(p.get('vencimiento', ''))}. {empresa_nombre}"
+                            st.markdown(
+                                f"<a href='https://wa.me/?text={quote(_msg_fac)}' target='_blank' style='display:block;text-align:center;padding:0.35rem 0;background:#25D366;color:white;border-radius:0.35rem;text-decoration:none;font-size:0.8rem;font-weight:500;margin-top:0.3rem;'>WhatsApp</a>",
+                                unsafe_allow_html=True,
+                            )
                         with a2:
                             if st.button("Duplicar", key=f"dup_fac_{pid}", use_container_width=True):
                                 duplicado = {
