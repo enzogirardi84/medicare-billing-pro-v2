@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any, Dict
 
 import streamlit as st
@@ -248,7 +249,6 @@ def render_clientes() -> None:
                             saldo_cliente = sum(money(p.get("saldo")) for p in cli_pref)
                             st.metric("Saldo", fmt_moneda(saldo_cliente))
                             # Saldo vencido
-                            from datetime import date
                             vencidas = [
                                 p for p in cli_pref
                                 if str(p.get("estado", "")) in ("Pendiente", "Parcial")

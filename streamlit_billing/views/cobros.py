@@ -103,7 +103,18 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
         }
         if fac_linked and fac_linked_id not in {str(p.get("id")) for p in prefacturas_pendientes}:
             fac_opts[f"{fac_linked.get('numero', '')} | {fac_linked.get('cliente_nombre', '')} | Saldo {fmt_moneda(fac_linked.get('saldo', 0))} (vinculada)"] = fac_linked
-        fac_sel = st.selectbox("Vincular a pre-factura (opcional)", options=["Ninguna"] + list(fac_opts.keys())) if fac_opts else "Ninguna"
+        fac_keys = ["Ninguna"] + list(fac_opts.keys())
+        default_fac = 0
+        if existing and fac_linked:
+            linked_label = f"{fac_linked.get('numero', '')} | {fac_linked.get('cliente_nombre', '')} | Saldo {fmt_moneda(fac_linked.get('saldo', 0))} (vinculada)"
+            if linked_label in fac_keys:
+                default_fac = fac_keys.index(linked_label)
+            elif fac_linked in fac_opts.values():
+                for k, v in fac_opts.items():
+                    if str(v.get("id")) == fac_linked_id:
+                        default_fac = fac_keys.index(k)
+                        break
+        fac_sel = st.selectbox("Vincular a pre-factura (opcional)", options=fac_keys, index=default_fac) if fac_opts else "Ninguna"
         if fac_sel != "Ninguna":
             fac_preview = fac_opts.get(fac_sel, {})
             st.caption(

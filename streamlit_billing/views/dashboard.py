@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any, Dict, List
+import time
+
+import streamlit as st
 
 
 def _parse_date(value: Any, default: date) -> date:
@@ -10,8 +13,6 @@ def _parse_date(value: Any, default: date) -> date:
         return date.fromisoformat(str(value)[:10])
     except Exception:
         return default
-
-import streamlit as st
 
 from core.db_sql import get_clientes, get_cobros, get_prefacturas, get_presupuestos
 from core.billing_logic import enriquecer_prefacturas_con_saldo, prefacturas_con_saldo, total_saldo_prefacturas
@@ -101,7 +102,6 @@ def _recent_activity(
 
 
 def render_dashboard() -> None:
-    import time
     empresa_id = st.session_state.get("billing_empresa_id", "")
 
     # Reusar cache de billing_app.py si existe (misma empresa)
