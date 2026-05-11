@@ -58,6 +58,22 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
     borrador_key = f"borrador_cobro_{form_id}"
     borrador = st.session_state.get(borrador_key, {}) if not es_edicion else {}
 
+    # Pre-factura pre-seleccionada desde otro modulo (ej: boton Cobrar en pre-facturas)
+    preseleccion = st.session_state.pop("cobro_prefactura_preseleccionada", None)
+    if preseleccion and not es_edicion:
+        prefac = next(
+            (p for p in prefacturas_pendientes if str(p.get("id")) == str(preseleccion.get("id"))),
+            None,
+        )
+        if prefac:
+            borrador = {
+                **borrador,
+                "cliente_nombre": prefac.get("cliente_nombre", ""),
+                "concepto": f"Pago {prefac.get('numero', '')}",
+                "monto": str(prefac.get("saldo", 0)),
+                "prefactura_id": str(prefac.get("id", "")),
+            }
+
     def _v(field: str, default: str = "") -> str:
         if es_edicion:
             return existing.get(field, default)  # type: ignore[union-attr]
@@ -92,7 +108,7 @@ def _form_cobro(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None
 
         concepto = st.text_input("Concepto", value=_v("concepto"), placeholder="Ej: Pago honorarios marzo 2026")
         # Incluir pre-factura vinculada actual (si existe) aunque ya no este pendiente
-        fac_linked_id = str(existing.get("prefactura_id", "")) if existing else ""
+        fac_linked_id = str(existing.get("prefactura_id", "")) if existing else str(borrador.get("prefactura_id", ""))
         fac_linked = next((p for p in prefacturas if str(p.get("id")) == fac_linked_id), None)
         fac_opts = {
             (
