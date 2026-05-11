@@ -21,7 +21,7 @@ def _parse_date(value: Any, default: date) -> date:
         return default
 
 
-def _form_presupuesto(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | None:
+def _form_presupuesto(existing: Dict[str, Any] | None = None, items_preset: list | None = None) -> Dict[str, Any] | None:
     es_edicion = existing is not None
     clientes = get_clientes(st.session_state.get("billing_empresa_id", ""))
     cliente_opts = {c["nombre"]: c for c in clientes}
@@ -29,7 +29,7 @@ def _form_presupuesto(existing: Dict[str, Any] | None = None) -> Dict[str, Any] 
         st.warning("Primero carga un cliente fiscal para poder crear presupuestos.")
         return None
 
-    base_items = existing.get("items", []) if existing else []
+    base_items = existing.get("items", []) if existing else (items_preset or [])
     form_id = existing.get("id", "new") if existing else "new"
     borrador_key = f"borrador_presupuesto_{form_id}"
     borrador = st.session_state.get(borrador_key, {}) if not es_edicion else {}
@@ -38,7 +38,7 @@ def _form_presupuesto(existing: Dict[str, Any] | None = None) -> Dict[str, Any] 
         "Cantidad de conceptos",
         min_value=1,
         max_value=20,
-        value=max(1, len(base_items) or borrador.get("item_count", 1) or 1),
+        value=min(20, max(1, len(base_items) or borrador.get("item_count", 1) or 1)),
         key=f"pres_item_count_{form_id}",
     )
 
@@ -166,7 +166,11 @@ def render_presupuestos() -> None:
     with st.spinner("Cargando presupuestos..."):
         presupuestos = get_presupuestos(empresa_id)
 
-    tab1, tab2 = st.tabs(["Historial", "Nuevo presupuesto"])
+    _PLANTILLAS_KEY = "presupuesto_plantillas"
+    if _PLANTILLAS_KEY not in st.session_state:
+        st.session_state[_PLANTILLAS_KEY] = []
+
+    tab1, tab2, tab3 = st.tabs(["Historial", "Nuevo presupuesto", "Plantillas"])
 
     with tab1:
         if not presupuestos:
@@ -321,14 +325,16 @@ def render_presupuestos() -> None:
 
                         if p.get("estado") == "Aceptado":
                             if st.button("Convertir a pre-factura", key=f"conv_pres_{pid}", use_container_width=True):
+                                from datetime import timedelta
                                 prefactura_data = {
                                     "id": generar_id(),
                                     "empresa_id": empresa_id,
-                                    "numero": f"FAC-{generar_id()[:6].upper()}",
+                                    "numero": generar_numero_formal(empresa_id, "PREF", 1, "PREF"),
                                     "cliente_id": p.get("cliente_id", ""),
                                     "cliente_nombre": p.get("cliente_nombre", ""),
-                                    "cliente_dni": "",
+                                    "cliente_dni": p.get("cliente_dni", ""),
                                     "fecha": hoy().isoformat(),
+                                    "vencimiento": (hoy() + timedelta(days=30)).isoformat(),
                                     "items": p.get("items", []),
                                     "total": p.get("total", 0),
                                     "estado": "Pendiente",
@@ -355,10 +361,66 @@ def render_presupuestos() -> None:
                                     mostrar_error_db("actualizar el presupuesto")
 
     with tab2:
-        data = _form_presupuesto()
+        plantillas = st.session_state.get(_PLANTILLAS_KEY, [])
+        if plantillas:
+            nombres = [p.get("nombre", "") for p in plantillas]
+            colp1, colp2 = st.columns([2, 1])
+            with colp1:
+                sel = st.selectbox("Cargar plantilla", ["—"] + nombres, key="pres_plantilla_sel")
+            with colp2:
+                st.markdown("<div style='height:1.7rem;'></div>", unsafe_allow_html=True)
+                if sel != "—":
+                    if st.button("Cargar", key="pres_plantilla_load_btn", use_container_width=True):
+                        st.session_state["pres_plantilla_cargar"] = sel
+                        st.rerun()
+        plantilla_items = []
+        if st.session_state.get("pres_plantilla_cargar"):
+            sel_name = st.session_state.pop("pres_plantilla_cargar")
+            for pl in plantillas:
+                if pl.get("nombre") == sel_name:
+                    plantilla_items = pl.get("items", [])
+                    break
+            if plantilla_items:
+                st.info(f"Plantilla '{sel_name}' cargada.")
+        data = _form_presupuesto(items_preset=plantilla_items)
         if data:
             if upsert_presupuesto(data):
                 st.toast("Presupuesto creado.")
                 st.rerun()
             else:
                 mostrar_error_db("guardar el presupuesto")
+
+    with tab3:
+        st.markdown("### Plantillas de presupuestos")
+        st.caption("Guarda conjuntos de conceptos reutilizables.")
+        plantillas = st.session_state.get(_PLANTILLAS_KEY, [])
+        if not plantillas:
+            st.info("No hay plantillas guardadas.")
+        else:
+            for i, pl in enumerate(plantillas):
+                with st.container(border=True):
+                    c1, c2 = st.columns([3, 1])
+                    with c1:
+                        st.markdown(f"**{pl.get('nombre', 'Sin nombre')}**")
+                        items_str = " | ".join(f"{it.get('concepto', '')} (${it.get('precio_unitario', 0)})" for it in pl.get("items", []))
+                        st.caption(items_str[:120] + ("..." if len(items_str) > 120 else ""))
+                    with c2:
+                        if st.button("Eliminar", key=f"del_plantilla_{i}", use_container_width=True):
+                            st.session_state[_PLANTILLAS_KEY].pop(i)
+                            st.rerun()
+        st.divider()
+        st.markdown("#### Guardar nueva plantilla")
+        if presupuestos:
+            opts = {p.get("numero", "") + " - " + p.get("cliente_nombre", ""): p for p in presupuestos}
+            sel_pres = st.selectbox("Seleccionar presupuesto", ["—"] + list(opts.keys()), key="pres_save_plantilla_sel")
+            nombre_pl = st.text_input("Nombre de la plantilla", placeholder="Ej: Consulta cardiologica completa", key="pres_save_plantilla_nombre")
+            if st.button("Guardar como plantilla", key="pres_save_plantilla_btn", disabled=(sel_pres == "—" or not nombre_pl.strip())):
+                p = opts[sel_pres]
+                st.session_state[_PLANTILLAS_KEY].append({
+                    "nombre": nombre_pl.strip(),
+                    "items": p.get("items", []),
+                })
+                st.toast(f"Plantilla '{nombre_pl.strip()}' guardada.")
+                st.rerun()
+        else:
+            st.caption("Crea un presupuesto primero.")
