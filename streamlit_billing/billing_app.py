@@ -95,16 +95,51 @@ def _main():
                     unsafe_allow_html=True,
                 )
 
-    # Navegacion tipo pills
+    # Navegacion en 2 filas para evitar texto superpuesto
     st.markdown("---")
-    nav_cols = st.columns(len(MODULOS))
-    for i, label in enumerate(MODULOS):
-        with nav_cols[i]:
+    nav_labels = list(MODULOS.keys())
+    nav_icons = {
+        "Resumen": "📊",
+        "Clientes fiscales": "👥",
+        "Presupuestos": "📋",
+        "Pre-facturas": "📄",
+        "Facturas ARCA": "🏛️",
+        "Cobros": "💵",
+        "Cuenta corriente": "📒",
+        "Reportes": "📈",
+        "Configuracion": "⚙️",
+    }
+    # Fila 1: 5 primeros modulos
+    cols1 = st.columns(5)
+    for i, label in enumerate(nav_labels[:5]):
+        with cols1[i]:
             is_active = modulo_activo == label
             btn_type = "primary" if is_active else "secondary"
-            if st.button(label, key=f"nav_{label}", use_container_width=True, type=btn_type):
+            if st.button(
+                f"{nav_icons.get(label, '')} {label}",
+                key=f"nav_{label}",
+                use_container_width=True,
+                type=btn_type,
+            ):
                 st.session_state["billing_modulo_activo"] = label
                 st.rerun()
+    # Fila 2: 4 modulos restantes
+    cols2 = st.columns(5)
+    for i, label in enumerate(nav_labels[5:]):
+        with cols2[i]:
+            is_active = modulo_activo == label
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(
+                f"{nav_icons.get(label, '')} {label}",
+                key=f"nav_{label}",
+                use_container_width=True,
+                type=btn_type,
+            ):
+                st.session_state["billing_modulo_activo"] = label
+                st.rerun()
+    # Celda vacia para alinear visualmente la ultima fila
+    with cols2[4]:
+        st.empty()
     st.markdown("---")
 
     # Banner de estado minimalista
