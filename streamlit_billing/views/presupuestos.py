@@ -215,7 +215,7 @@ def render_presupuestos() -> None:
                 for p in paginated:
                     pid = p.get("id")
                     with st.container(border=True):
-                        c1, c2, c3 = st.columns([3, 1.3, 1.7])
+                        c1, c2 = st.columns([4.2, 1.4])
                         with c1:
                             st.markdown(f"**{p.get('numero', '-')}** | {p.get('cliente_nombre', '-')}")
                             st.caption(f"{fmt_fecha(p.get('fecha', ''))} | Vence: {fmt_fecha(p.get('valido_hasta', ''))} | {fmt_moneda(p.get('total', 0))}")
@@ -235,30 +235,31 @@ def render_presupuestos() -> None:
                                     st.rerun()
                                 else:
                                     mostrar_error_db("actualizar el estado")
-                        with c3:
-                            b1, b2, b3 = st.columns(3)
-                            with b1:
-                                if FPDF_DISPONIBLE:
-                                    st.download_button(
-                                        "PDF",
-                                        data=exportar_presupuesto_pdf(p, empresa_nombre, p.get("items", [])),
-                                        file_name=f"presupuesto_{sanitize_filename(p.get('numero', ''))}.pdf",
-                                        mime="application/pdf",
-                                        key=f"pdf_pres_{pid}",
-                                        use_container_width=True,
-                                    )
-                            with b2:
-                                if st.button("Editar", key=f"edit_pres_{pid}", use_container_width=True):
-                                    st.session_state["pres_editing"] = pid
+
+                        a1, a2, a3, a4 = st.columns([1.2, 1.2, 1.4, 1.2])
+                        with a1:
+                            if FPDF_DISPONIBLE:
+                                st.download_button(
+                                    "Descargar PDF",
+                                    data=exportar_presupuesto_pdf(p, empresa_nombre, p.get("items", [])),
+                                    file_name=f"presupuesto_{sanitize_filename(p.get('numero', ''))}.pdf",
+                                    mime="application/pdf",
+                                    key=f"pdf_pres_{pid}",
+                                    use_container_width=True,
+                                )
+                        with a2:
+                            if st.button("Editar", key=f"edit_pres_{pid}", use_container_width=True):
+                                st.session_state["pres_editing"] = pid
+                                st.rerun()
+                        with a3:
+                            confirm = st.checkbox("Confirmar borrado", key=f"confirm_del_pres_{pid}")
+                        with a4:
+                            if st.button("Eliminar", key=f"del_pres_{pid}", use_container_width=True, disabled=not confirm):
+                                if delete_presupuesto(pid):
+                                    st.toast("Presupuesto eliminado.")
                                     st.rerun()
-                            with b3:
-                                confirm = st.checkbox("OK", key=f"confirm_del_pres_{pid}")
-                                if st.button("Borrar", key=f"del_pres_{pid}", use_container_width=True, disabled=not confirm):
-                                    if delete_presupuesto(pid):
-                                        st.toast("Presupuesto eliminado.")
-                                        st.rerun()
-                                    else:
-                                        mostrar_error_db("eliminar el presupuesto")
+                                else:
+                                    mostrar_error_db("eliminar el presupuesto")
 
                         if p.get("estado") == "Aceptado":
                             if st.button("Convertir a pre-factura", key=f"conv_pres_{pid}", use_container_width=True):

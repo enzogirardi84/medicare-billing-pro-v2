@@ -135,9 +135,9 @@ def authenticate_user(usuario: str, password: str) -> Optional[Dict[str, Any]]:
         }
 
     try:
-        from core.db_sql import supabase
+        from core.db_sql import _active_supabase
 
-        if not supabase:
+        if not _active_supabase():
             log_event("auth", "supabase_no_disponible")
             return None
 
@@ -245,26 +245,29 @@ def render_login() -> bool:
         }
         input { color: #f8fafc !important; }
         .stButton > button[kind="primary"],
-        .stButton > button[data-testid="stBaseButton-primary"] {
+        .stButton > button[data-testid="stBaseButton-primary"],
+        .stFormSubmitButton > button,
+        [data-testid="stFormSubmitButton"] button {
             background: linear-gradient(135deg, #14b8a6 0%, #2563eb 100%) !important;
             border: 1px solid rgba(94, 234, 212, 0.35) !important;
             border-radius: 8px !important;
             color: #ffffff !important;
             font-weight: 700 !important;
             box-shadow: 0 8px 22px rgba(14, 165, 233, 0.24) !important;
+            min-height: 42px !important;
+            white-space: nowrap !important;
         }
         .stButton > button[kind="primary"] p,
-        .stButton > button[data-testid="stBaseButton-primary"] p { color: #ffffff !important; }
-        @media (max-width: 768px) {
+        .stButton > button[data-testid="stBaseButton-primary"] p,
+        .stFormSubmitButton > button p,
+        [data-testid="stFormSubmitButton"] button p {
+            color: #ffffff !important;
+            white-space: nowrap !important;
+            margin: 0 !important;
+        }
+        @media (max-width: 760px) {
             .main .block-container { padding: 1.25rem 1rem 2rem !important; }
             .billing-login-metrics { grid-template-columns: 1fr; }
-            .billing-login-hero h1 { font-size: 1.6rem !important; }
-            .billing-login-hero p { font-size: 0.85rem !important; }
-            .billing-login-card h2 { font-size: 1.15rem !important; }
-        }
-        @media (max-width: 480px) {
-            .billing-login-hero { padding: 1rem !important; }
-            .billing-login-card { padding: 1rem !important; }
         }
         </style>
         """,

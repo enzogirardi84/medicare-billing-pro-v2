@@ -233,7 +233,7 @@ def render_cobros() -> None:
                         for cobro in items:
                             cid = cobro.get("id")
                             with st.container(border=True):
-                                cc1, cc2, cc3 = st.columns([3, 1.2, 1.2])
+                                cc1, cc2 = st.columns([4.2, 1.4])
                                 with cc1:
                                     st.markdown(f"**{cobro.get('cliente_nombre', '-')}** | {fmt_moneda(cobro.get('monto', 0))}")
                                     st.caption(f"{fmt_fecha(cobro.get('fecha', ''))} | {cobro.get('metodo_pago', '')} | {cobro.get('concepto', '-')}")
@@ -259,11 +259,12 @@ def render_cobros() -> None:
                                             st.rerun()
                                         else:
                                             mostrar_error_db("actualizar el cobro")
-                                with cc3:
+                                a1, a2, a3 = st.columns([1.25, 1.5, 1.1])
+                                with a1:
                                     pref = prefacturas_por_id.get(str(cobro.get("prefactura_id", "")), {})
                                     if FPDF_DISPONIBLE:
                                         st.download_button(
-                                            "Recibo",
+                                            "Recibo PDF",
                                             data=exportar_recibo_cobro_pdf(
                                                 cobro,
                                                 empresa_nombre,
@@ -275,7 +276,9 @@ def render_cobros() -> None:
                                             key=f"pdf_recibo_{cid}",
                                             use_container_width=True,
                                         )
-                                    confirm = st.checkbox("Borrar", key=f"confirm_del_cob_{cid}")
+                                with a2:
+                                    confirm = st.checkbox("Confirmar borrado", key=f"confirm_del_cob_{cid}")
+                                with a3:
                                     if st.button("Eliminar", key=f"del_cob_{cid}", use_container_width=True, disabled=not confirm):
                                         prefactura_id = cobro.get("prefactura_id", "")
                                         if delete_cobro(cid):

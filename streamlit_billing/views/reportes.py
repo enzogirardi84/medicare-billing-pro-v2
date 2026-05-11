@@ -144,7 +144,7 @@ def render_reportes() -> None:
         bloque_estado_vacio("Cartera al dia", "No hay pre-facturas pendientes en el mes seleccionado.")
 
     st.markdown("### Exportar reporte")
-    ec1, ec2, ec3, ec4, ec5 = st.columns(5)
+    ec1, ec2, ec3 = st.columns(3)
     base_name = f"{mes_sel}_{sanitize_filename(empresa_nombre)}"
     with ec1:
         if XLSX_DISPONIBLE:
@@ -173,6 +173,8 @@ def render_reportes() -> None:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
+
+    ec4, ec5 = st.columns(2)
     with ec4:
         if FPDF_DISPONIBLE and cob_mes:
             st.download_button(

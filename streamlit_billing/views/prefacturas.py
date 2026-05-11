@@ -204,7 +204,7 @@ def render_prefacturas() -> None:
                 for p in paginated:
                     pid = p.get("id")
                     with st.container(border=True):
-                        c1, c2, c3 = st.columns([3, 1.3, 1.7])
+                        c1, c2 = st.columns([4.2, 1.4])
                         with c1:
                             st.markdown(f"**{p.get('numero', '-')}** | {p.get('cliente_nombre', '-')}")
                             st.caption(f"DNI/CUIT: {p.get('cliente_dni', '-')} | {fmt_fecha(p.get('fecha', ''))}")
@@ -231,30 +231,31 @@ def render_prefacturas() -> None:
                                     st.rerun()
                                 else:
                                     mostrar_error_db("actualizar el estado")
-                        with c3:
-                            b1, b2, b3 = st.columns(3)
-                            with b1:
-                                if FPDF_DISPONIBLE:
-                                    st.download_button(
-                                        "PDF",
-                                        data=exportar_prefactura_pdf(p, empresa_nombre, p.get("items", [])),
-                                        file_name=f"prefactura_{sanitize_filename(p.get('numero', ''))}.pdf",
-                                        mime="application/pdf",
-                                        key=f"pdf_fac_{pid}",
-                                        use_container_width=True,
-                                    )
-                            with b2:
-                                if st.button("Editar", key=f"edit_fac_{pid}", use_container_width=True):
-                                    st.session_state["fac_editing"] = pid
+
+                        a1, a2, a3, a4 = st.columns([1.2, 1.2, 1.4, 1.2])
+                        with a1:
+                            if FPDF_DISPONIBLE:
+                                st.download_button(
+                                    "Descargar PDF",
+                                    data=exportar_prefactura_pdf(p, empresa_nombre, p.get("items", [])),
+                                    file_name=f"prefactura_{sanitize_filename(p.get('numero', ''))}.pdf",
+                                    mime="application/pdf",
+                                    key=f"pdf_fac_{pid}",
+                                    use_container_width=True,
+                                )
+                        with a2:
+                            if st.button("Editar", key=f"edit_fac_{pid}", use_container_width=True):
+                                st.session_state["fac_editing"] = pid
+                                st.rerun()
+                        with a3:
+                            confirm = st.checkbox("Confirmar borrado", key=f"confirm_del_fac_{pid}")
+                        with a4:
+                            if st.button("Eliminar", key=f"del_fac_{pid}", use_container_width=True, disabled=not confirm):
+                                if delete_prefactura(pid):
+                                    st.toast("Pre-factura eliminada.")
                                     st.rerun()
-                            with b3:
-                                confirm = st.checkbox("OK", key=f"confirm_del_fac_{pid}")
-                                if st.button("Borrar", key=f"del_fac_{pid}", use_container_width=True, disabled=not confirm):
-                                    if delete_prefactura(pid):
-                                        st.toast("Pre-factura eliminada.")
-                                        st.rerun()
-                                    else:
-                                        mostrar_error_db("eliminar la pre-factura")
+                                else:
+                                    mostrar_error_db("eliminar la pre-factura")
 
                         if st.session_state.get("fac_editing") == pid:
                             st.divider()

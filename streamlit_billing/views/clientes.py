@@ -173,7 +173,7 @@ def render_clientes() -> None:
                 for cliente in paginated:
                     cliente_id = cliente.get("id")
                     with st.container(border=True):
-                        c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
+                        c1, c2 = st.columns([4.2, 1.4])
                         with c1:
                             st.markdown(f"**{cliente.get('nombre', 'Sin nombre')}**")
                             st.caption(f"DNI/CUIT: {cliente.get('dni', '-')} | {cliente.get('condicion_fiscal', '-')}")
@@ -214,6 +214,11 @@ def render_clientes() -> None:
                                 else:
                                     st.caption("Sin movimientos todavia.")
                         with c2:
+                            saldo_cliente = sum(money(p.get("saldo")) for p in cli_pref)
+                            st.metric("Saldo", fmt_moneda(saldo_cliente))
+
+                        a1, a2, a3, a4 = st.columns([1.3, 1.1, 1.5, 1.1])
+                        with a1:
                             if st.button("Cuenta", key=f"cc_cli_{cliente_id}", use_container_width=True):
                                 st.session_state["cc_cliente_label"] = (
                                     f"{cliente.get('nombre', 'Sin nombre')} | {cliente.get('dni', '')}"
@@ -222,13 +227,14 @@ def render_clientes() -> None:
                                 )
                                 st.session_state["billing_modulo_activo"] = "Cuenta corriente"
                                 st.rerun()
-                        with c3:
+                        with a2:
                             if st.button("Editar", key=f"edit_cli_{cliente_id}", use_container_width=True):
                                 st.session_state["cli_editing"] = cliente_id
                                 st.rerun()
-                        with c4:
-                            confirmar = st.checkbox("Confirmar", key=f"confirm_del_cli_{cliente_id}")
-                            if st.button("Borrar", key=f"del_cli_{cliente_id}", use_container_width=True, disabled=not confirmar):
+                        with a3:
+                            confirmar = st.checkbox("Confirmar borrado", key=f"confirm_del_cli_{cliente_id}")
+                        with a4:
+                            if st.button("Eliminar", key=f"del_cli_{cliente_id}", use_container_width=True, disabled=not confirmar):
                                 if delete_cliente(cliente_id):
                                     st.toast("Cliente eliminado.")
                                     st.rerun()

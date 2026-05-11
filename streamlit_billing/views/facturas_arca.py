@@ -238,7 +238,7 @@ def render_facturas_arca() -> None:
             with st.container(height=610, border=False):
                 for f in paginated:
                     with st.container(border=True):
-                        c1, c2, c3 = st.columns([3, 1.4, 2])
+                        c1, c2 = st.columns([4.2, 1.4])
                         with c1:
                             st.markdown(f"**Factura {f.get('tipo_comprobante', 'C')} {f.get('numero', '-')}** | {f.get('cliente_nombre', '-')}")
                             st.caption(f"{fmt_fecha(f.get('fecha', ''))} | Neto {fmt_moneda(f.get('neto', 0))} | IVA {fmt_moneda(f.get('iva', 0))} | Total {fmt_moneda(f.get('total', 0))}")
@@ -250,20 +250,26 @@ def render_facturas_arca() -> None:
                                 if upsert_factura_arca(f):
                                     registrar_auditoria(empresa_id, usuario, "cambiar_estado", "factura_arca", f.get("id", ""), {"estado": estado})
                                     st.rerun()
-                        with c3:
-                            b1, b2, b3 = st.columns(3)
-                            with b1:
-                                if FPDF_DISPONIBLE:
-                                    st.download_button("PDF", exportar_factura_arca_pdf(f, empresa_nombre, f.get("items", []), config), f"factura_arca_{sanitize_filename(f.get('numero', ''))}.pdf", mime="application/pdf", key=f"pdf_arca_{f.get('id')}", use_container_width=True)
-                            with b2:
-                                result = emitir_factura_homologacion(f, config)
-                                if st.button("Emitir", key=f"emit_arca_{f.get('id')}", use_container_width=True, disabled=not status.listo):
-                                    st.warning(result.get("mensaje", "Pendiente de homologacion."))
-                            with b3:
-                                if st.button("Borrar", key=f"del_arca_{f.get('id')}", use_container_width=True):
-                                    if delete_factura_arca(f.get("id")):
-                                        registrar_auditoria(empresa_id, usuario, "borrar", "factura_arca", f.get("id", ""))
-                                        st.rerun()
+                        a1, a2, a3 = st.columns([1.25, 1.1, 1.1])
+                        with a1:
+                            if FPDF_DISPONIBLE:
+                                st.download_button(
+                                    "Descargar PDF",
+                                    exportar_factura_arca_pdf(f, empresa_nombre, f.get("items", []), config),
+                                    f"factura_arca_{sanitize_filename(f.get('numero', ''))}.pdf",
+                                    mime="application/pdf",
+                                    key=f"pdf_arca_{f.get('id')}",
+                                    use_container_width=True,
+                                )
+                        with a2:
+                            result = emitir_factura_homologacion(f, config)
+                            if st.button("Emitir ARCA", key=f"emit_arca_{f.get('id')}", use_container_width=True, disabled=not status.listo):
+                                st.warning(result.get("mensaje", "Pendiente de homologacion."))
+                        with a3:
+                            if st.button("Eliminar", key=f"del_arca_{f.get('id')}", use_container_width=True):
+                                if delete_factura_arca(f.get("id")):
+                                    registrar_auditoria(empresa_id, usuario, "borrar", "factura_arca", f.get("id", ""))
+                                    st.rerun()
 
     with tab2:
         data = _form_factura()
