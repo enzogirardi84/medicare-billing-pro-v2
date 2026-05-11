@@ -341,6 +341,14 @@ def render_facturas_arca() -> None:
 
     with tab3:
         prefs = [p for p in get_prefacturas(empresa_id) if p.get("estado") != "Anulada"]
+        # Pre-seleccionada desde otro modulo
+        pre_sel_id = st.session_state.pop("arca_prefactura_preseleccionada", None)
+        if pre_sel_id:
+            pre_sel = next((p for p in prefs if str(p.get("id")) == str(pre_sel_id)), None)
+            if pre_sel:
+                st.info(f"Pre-factura pre-seleccionada: **{pre_sel.get('numero', '')}** | {pre_sel.get('cliente_nombre', '')}")
+                # Mover al frente
+                prefs = [pre_sel] + [p for p in prefs if str(p.get("id")) != str(pre_sel_id)]
         if not prefs:
             bloque_estado_vacio("Sin pre-facturas disponibles", "Crea una pre-factura primero.")
         else:
@@ -349,8 +357,12 @@ def render_facturas_arca() -> None:
             iva_incluido = st.checkbox("Factura A con IVA 21% incluido", key="conv_iva")
             with st.container(height=560, border=False):
                 for p in prefs:
+                    es_preseleccionada = pre_sel_id and str(p.get("id")) == str(pre_sel_id)
                     with st.container(border=True):
-                        st.markdown(f"**{p.get('numero', '-')}** | {p.get('cliente_nombre', '-')} | {fmt_moneda(p.get('total', 0))}")
+                        if es_preseleccionada:
+                            st.markdown(f"🔵 **{p.get('numero', '-')}** | {p.get('cliente_nombre', '-')} | {fmt_moneda(p.get('total', 0))}")
+                        else:
+                            st.markdown(f"**{p.get('numero', '-')}** | {p.get('cliente_nombre', '-')} | {fmt_moneda(p.get('total', 0))}")
                         if st.button("Convertir a factura ARCA", key=f"conv_arca_{p.get('id')}", use_container_width=True):
                             data = _desde_prefactura(p, tipo, int(pv), iva_incluido)
                             if upsert_factura_arca(data):

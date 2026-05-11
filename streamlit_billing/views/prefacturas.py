@@ -292,7 +292,7 @@ def render_prefacturas() -> None:
                                 else:
                                     mostrar_error_db("actualizar el estado")
 
-                        a1, a2, a3, a4, a5, a6 = st.columns([1, 1, 1, 1, 0.7, 1])
+                        a1, a2, a3, a4, a5, a6, a7 = st.columns([1, 1, 1, 1, 1, 0.7, 1])
                         with a1:
                             if FPDF_DISPONIBLE:
                                 st.download_button(
@@ -325,6 +325,11 @@ def render_prefacturas() -> None:
                                 else:
                                     mostrar_error_db("duplicar la pre-factura")
                         with a3:
+                            if st.button("Facturar ARCA", key=f"fac_arca_{pid}", use_container_width=True):
+                                st.session_state["arca_prefactura_preseleccionada"] = str(pid)
+                                st.session_state["billing_modulo_activo"] = "Facturas ARCA"
+                                st.rerun()
+                        with a4:
                             if p.get("estado") in ("Pendiente", "Parcial") and money(p.get("saldo", 0)) > 0:
                                 if st.button("Cobrar", key=f"cobrar_fac_{pid}", use_container_width=True):
                                     st.session_state["cobro_prefactura_preseleccionada"] = {
@@ -333,13 +338,13 @@ def render_prefacturas() -> None:
                                     }
                                     st.session_state["billing_modulo_activo"] = "Cobros"
                                     st.rerun()
-                        with a4:
+                        with a5:
                             if st.button("Editar", key=f"edit_fac_{pid}", use_container_width=True):
                                 st.session_state["fac_editing"] = pid
                                 st.rerun()
-                        with a5:
-                            confirm = st.checkbox("Confirmar", key=f"confirm_del_fac_{pid}")
                         with a6:
+                            confirm = st.checkbox("Confirmar", key=f"confirm_del_fac_{pid}")
+                        with a7:
                             if st.button("Eliminar", key=f"del_fac_{pid}", use_container_width=True, disabled=not confirm):
                                 if delete_prefactura(pid):
                                     st.toast("Pre-factura eliminada.")
