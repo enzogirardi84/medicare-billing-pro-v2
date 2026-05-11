@@ -50,28 +50,40 @@ def render_configuracion() -> None:
             cert_ok = st.checkbox("Certificado y clave privada configurados fuera de la app", value=bool(config.get("arca_certificado_configurado", False)))
 
             if st.form_submit_button("Guardar configuracion fiscal", type="primary", use_container_width=True):
-                data = {
-                    "empresa_id": empresa_id,
-                    "razon_social": razon_social.strip(),
-                    "nombre_fantasia": nombre_fantasia.strip(),
-                    "cuit": normalize_document(cuit),
-                    "condicion_iva": condicion_iva,
-                    "domicilio_fiscal": domicilio.strip(),
-                    "ingresos_brutos": ingresos_brutos.strip(),
-                    "inicio_actividades": inicio.isoformat(),
-                    "punto_venta": int(punto_venta),
-                    "email_facturacion": email.strip().lower(),
-                    "telefono_facturacion": normalize_phone(telefono),
-                    "leyenda_factura": leyenda.strip(),
-                    "arca_modo": modo,
-                    "arca_certificado_configurado": cert_ok,
-                }
-                if upsert_config_fiscal(data):
-                    registrar_auditoria(empresa_id, usuario, "guardar_config_fiscal", "config_fiscal", empresa_id, {"modo": modo})
-                    st.toast("Configuracion guardada.")
-                    st.rerun()
-                else:
-                    mostrar_error_db("guardar la configuracion fiscal")
+                cuit_limpio = normalize_document(cuit)
+                valido = True
+                if not cuit_limpio:
+                    st.error("El CUIT es obligatorio.")
+                    valido = False
+                elif len(cuit_limpio) == 11:
+                    from core.utils import validar_cuit
+                    ok, msg = validar_cuit(cuit_limpio)
+                    if not ok:
+                        st.error(f"CUIT invalido: {msg}")
+                        valido = False
+                if valido:
+                    data = {
+                        "empresa_id": empresa_id,
+                        "razon_social": razon_social.strip(),
+                        "nombre_fantasia": nombre_fantasia.strip(),
+                        "cuit": cuit_limpio,
+                        "condicion_iva": condicion_iva,
+                        "domicilio_fiscal": domicilio.strip(),
+                        "ingresos_brutos": ingresos_brutos.strip(),
+                        "inicio_actividades": inicio.isoformat(),
+                        "punto_venta": int(punto_venta),
+                        "email_facturacion": email.strip().lower(),
+                        "telefono_facturacion": normalize_phone(telefono),
+                        "leyenda_factura": leyenda.strip(),
+                        "arca_modo": modo,
+                        "arca_certificado_configurado": cert_ok,
+                    }
+                    if upsert_config_fiscal(data):
+                        registrar_auditoria(empresa_id, usuario, "guardar_config_fiscal", "config_fiscal", empresa_id, {"modo": modo})
+                        st.toast("Configuracion guardada.")
+                        st.rerun()
+                    else:
+                        mostrar_error_db("guardar la configuracion fiscal")
 
         status = validar_configuracion_arca(get_config_fiscal(empresa_id))
         (st.success if status.listo else st.warning)(status.mensaje)
