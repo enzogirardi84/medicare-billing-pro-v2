@@ -66,11 +66,37 @@ def _main():
 
     modulo_activo = st.session_state["billing_modulo_activo"]
 
-    clientes_resumen = get_clientes(empresa_id)
-    presupuestos_resumen = get_presupuestos(empresa_id)
-    prefacturas_resumen = get_prefacturas(empresa_id)
-    cobros_resumen = get_cobros(empresa_id)
-    facturas_arca_resumen = get_facturas_arca(empresa_id)
+    # Cachear datos en session_state para evitar queries repetidos
+    import time
+    _cache_key = f"billing_cache_{empresa_id}"
+    _cache_ts_key = "billing_cache_ts"
+    cache_valid = False
+    if _cache_key in st.session_state and _cache_ts_key in st.session_state:
+        cache_age = time.time() - st.session_state[_cache_ts_key]
+        cache_valid = cache_age < 30  # 30 segundos de cache
+
+    if cache_valid:
+        cached = st.session_state[_cache_key]
+        clientes_resumen = cached["clientes"]
+        presupuestos_resumen = cached["presupuestos"]
+        prefacturas_resumen = cached["prefacturas"]
+        cobros_resumen = cached["cobros"]
+        facturas_arca_resumen = cached["facturas_arca"]
+    else:
+        clientes_resumen = get_clientes(empresa_id)
+        presupuestos_resumen = get_presupuestos(empresa_id)
+        prefacturas_resumen = get_prefacturas(empresa_id)
+        cobros_resumen = get_cobros(empresa_id)
+        facturas_arca_resumen = get_facturas_arca(empresa_id)
+        st.session_state[_cache_key] = {
+            "clientes": clientes_resumen,
+            "presupuestos": presupuestos_resumen,
+            "prefacturas": prefacturas_resumen,
+            "cobros": cobros_resumen,
+            "facturas_arca": facturas_arca_resumen,
+        }
+        st.session_state[_cache_ts_key] = time.time()
+
     cobros_total = sum(float(c.get("monto", 0) or 0) for c in cobros_resumen)
     pendiente_total = total_saldo_prefacturas(prefacturas_resumen, cobros_resumen)
 

@@ -94,11 +94,24 @@ def _recent_activity(
 
 
 def render_dashboard() -> None:
+    import time
     empresa_id = st.session_state.get("billing_empresa_id", "")
-    clientes = get_clientes(empresa_id)
-    presupuestos = get_presupuestos(empresa_id)
-    prefacturas_raw = get_prefacturas(empresa_id)
-    cobros = get_cobros(empresa_id)
+
+    # Reusar cache de billing_app.py si existe (misma empresa)
+    _cache_key = f"billing_cache_{empresa_id}"
+    _cache_ts_key = "billing_cache_ts"
+    if _cache_key in st.session_state and _cache_ts_key in st.session_state:
+        cached = st.session_state[_cache_key]
+        clientes = cached.get("clientes", [])
+        presupuestos = cached.get("presupuestos", [])
+        prefacturas_raw = cached.get("prefacturas", [])
+        cobros = cached.get("cobros", [])
+    else:
+        clientes = get_clientes(empresa_id)
+        presupuestos = get_presupuestos(empresa_id)
+        prefacturas_raw = get_prefacturas(empresa_id)
+        cobros = get_cobros(empresa_id)
+
     prefacturas = enriquecer_prefacturas_con_saldo(prefacturas_raw, cobros)
 
     current_month = date.today().strftime("%Y-%m")

@@ -76,9 +76,16 @@ def _normalizar_empresa_id(user: Dict[str, Any]) -> str:
 
 
 def _buscar_usuario_en_monolito(usuario: str) -> Optional[Dict[str, Any]]:
-    from core.db_sql import supabase
+    from core.db_sql import _active_supabase
 
-    resp = supabase.table("medicare_db").select("datos").eq("id", 1).limit(1).execute()
+    sb = _active_supabase()
+    if not sb:
+        return None
+
+    try:
+        resp = sb.table("medicare_db").select("datos").eq("id", 1).limit(1).execute()
+    except Exception:
+        return None
     if not resp.data:
         return None
     blob = _decompress_medicare_payload(resp.data[0].get("datos"))
@@ -95,10 +102,14 @@ def _buscar_usuario_en_monolito(usuario: str) -> Optional[Dict[str, Any]]:
 
 
 def _buscar_usuario_en_tabla(usuario: str) -> Optional[Dict[str, Any]]:
-    from core.db_sql import supabase
+    from core.db_sql import _active_supabase
+
+    sb = _active_supabase()
+    if not sb:
+        return None
 
     try:
-        resp = supabase.table("usuarios").select("*").eq("usuario_login", usuario).limit(1).execute()
+        resp = sb.table("usuarios").select("*").eq("usuario_login", usuario).limit(1).execute()
         if resp.data:
             return dict(resp.data[0])
     except Exception as exc:

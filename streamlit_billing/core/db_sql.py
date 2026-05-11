@@ -49,6 +49,9 @@ def _active_supabase():
 
 def _supabase_execute_with_retry(op_name: str, fn, attempts: int = 3, base_delay: float = 0.35):
     global last_db_error, _supabase_disabled
+    if _supabase_disabled:
+        log_event("db", f"{op_name}_supabase_skipped:ya_deshabilitado")
+        raise RuntimeError("Supabase deshabilitado por clave invalida")
     last_error = None
     for i in range(attempts):
         try:
