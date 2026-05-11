@@ -93,10 +93,12 @@ def render_clientes() -> None:
 
     empresa_id = st.session_state.get("billing_empresa_id", "")
     empresa_nombre = st.session_state.get("billing_empresa_nombre", "Mi Empresa")
-    clientes = get_clientes(empresa_id)
-    presupuestos = get_presupuestos(empresa_id)
-    prefacturas = enriquecer_prefacturas_con_saldo(get_prefacturas(empresa_id), get_cobros(empresa_id))
-    cobros = get_cobros(empresa_id)
+
+    with st.spinner("Cargando clientes..."):
+        clientes = get_clientes(empresa_id)
+        presupuestos = get_presupuestos(empresa_id)
+        cobros = get_cobros(empresa_id)
+        prefacturas = enriquecer_prefacturas_con_saldo(get_prefacturas(empresa_id), cobros)
 
     tab1, tab2 = st.tabs(["Listado", "Nuevo cliente"])
 
@@ -134,8 +136,22 @@ def render_clientes() -> None:
                     use_container_width=True,
                 )
 
+            # Paginacion para soportar grandes volumenes
+            _PAGE_SIZE = 20
+            total_pages = max(1, (len(filtrados) + _PAGE_SIZE - 1) // _PAGE_SIZE)
+            if len(filtrados) > _PAGE_SIZE:
+                pg_cols = st.columns([3, 1])
+                with pg_cols[0]:
+                    page = st.selectbox("Pagina", options=list(range(1, total_pages + 1)), key="clientes_page") - 1
+                with pg_cols[1]:
+                    st.caption(f"Mostrando {min(_PAGE_SIZE, len(filtrados) - page * _PAGE_SIZE)} de {len(filtrados)}")
+            else:
+                page = 0
+
+            paginated = filtrados[page * _PAGE_SIZE:(page + 1) * _PAGE_SIZE]
+
             with st.container(height=610, border=False):
-                for cliente in filtrados:
+                for cliente in paginated:
                     cliente_id = cliente.get("id")
                     with st.container(border=True):
                         c1, c2, c3, c4 = st.columns([3, 1, 1, 1])
