@@ -44,7 +44,7 @@ def _form_factura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | No
     cliente_opts = {c["nombre"]: c for c in clientes}
     base_items = existing.get("items", []) if existing else []
     form_id = existing.get("id", "new") if existing else "new"
-    item_count = st.number_input("Cantidad de conceptos", min_value=1, max_value=30, value=max(1, len(base_items) or 1), key=f"arca_count_{form_id}")
+    item_count = st.number_input("Cantidad de conceptos", min_value=1, max_value=30, value=min(30, max(1, len(base_items) or 1)), key=f"arca_count_{form_id}")
 
     # Preview de numero sugerido
     tipo_num = {"A": "FACA", "B": "FACB", "C": "FACC"}.get(

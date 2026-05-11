@@ -39,7 +39,7 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
         "Cantidad de conceptos",
         min_value=1,
         max_value=20,
-        value=max(1, len(base_items) or borrador.get("item_count", 1) or 1),
+        value=min(20, max(1, len(base_items) or borrador.get("item_count", 1) or 1)),
         key=f"fac_item_count_{form_id}",
     )
 
