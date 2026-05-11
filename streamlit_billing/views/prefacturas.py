@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 import streamlit as st
 
-from core.db_sql import delete_prefactura, get_clientes, get_prefacturas, upsert_prefactura
+from core.db_sql import delete_prefactura, generar_numero_formal, get_clientes, get_prefacturas, upsert_prefactura
 from core.excel_export import XLSX_DISPONIBLE, exportar_prefacturas_excel
 from core.pdf_export import FPDF_DISPONIBLE, exportar_prefactura_pdf
 from core.billing_logic import enriquecer_prefacturas_con_saldo, money
@@ -129,10 +129,12 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
                 return None
             st.session_state.pop(borrador_key, None)
             cliente_data = cliente_opts.get(cliente_sel, {})
+            empresa_id = st.session_state.get("billing_empresa_id", "")
+            numero = existing.get("numero") if existing else generar_numero_formal(empresa_id, "PREF", 1, "PREF")
             return {
                 "id": existing.get("id") if existing else generar_id(),
-                "empresa_id": st.session_state.get("billing_empresa_id", ""),
-                "numero": existing.get("numero") if existing else f"FAC-{generar_id()[:6].upper()}",
+                "empresa_id": empresa_id,
+                "numero": numero,
                 "cliente_id": cliente_data.get("id", ""),
                 "cliente_nombre": cliente_sel,
                 "cliente_dni": cliente_data.get("dni", ""),
@@ -285,7 +287,7 @@ def render_prefacturas() -> None:
                                 duplicado = {
                                     "id": generar_id(),
                                     "empresa_id": empresa_id,
-                                    "numero": f"FAC-{generar_id()[:6].upper()}",
+                                    "numero": generar_numero_formal(empresa_id, "PREF", 1, "PREF"),
                                     "cliente_id": p.get("cliente_id", ""),
                                     "cliente_nombre": p.get("cliente_nombre", ""),
                                     "cliente_dni": p.get("cliente_dni", ""),
