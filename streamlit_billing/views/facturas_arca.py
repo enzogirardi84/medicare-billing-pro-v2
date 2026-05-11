@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import streamlit as st
 
-from core.arca_service import emitir_factura_homologacion, validar_configuracion_arca
+from core.arca_service import emitir_factura_arca, validar_configuracion_arca
 from core.billing_logic import money
 from core.db_sql import (
     delete_factura_arca,
@@ -250,11 +250,20 @@ def render_facturas_arca() -> None:
                                 if upsert_factura_arca(f):
                                     registrar_auditoria(empresa_id, usuario, "cambiar_estado", "factura_arca", f.get("id", ""), {"estado": estado})
                                     st.rerun()
-                        a1, a2, a3 = st.columns([1.25, 1.1, 1.1])
+                        # Estado ARCA
+                        cae = f.get("cae")
+                        es_mock = f.get("cae_mock", False)
+                        ya_emitida = bool(cae)
+                        estado_arca = f"✅ Autorizada (CAE: {cae})" if ya_emitida else "📝 Borrador"
+                        if es_mock:
+                            estado_arca += " [SIMULACION]"
+                        st.caption(f"ARCA: {estado_arca}")
+
+                        a1, a2, a3 = st.columns([1, 1, 1])
                         with a1:
                             if FPDF_DISPONIBLE:
                                 st.download_button(
-                                    "Descargar PDF",
+                                    "PDF",
                                     exportar_factura_arca_pdf(f, empresa_nombre, f.get("items", []), config),
                                     f"factura_arca_{sanitize_filename(f.get('numero', ''))}.pdf",
                                     mime="application/pdf",
@@ -262,11 +271,39 @@ def render_facturas_arca() -> None:
                                     use_container_width=True,
                                 )
                         with a2:
-                            result = emitir_factura_homologacion(f, config)
-                            if st.button("Emitir ARCA", key=f"emit_arca_{f.get('id')}", use_container_width=True, disabled=not status.listo):
-                                st.warning(result.get("mensaje", "Pendiente de homologacion."))
+                            if ya_emitida:
+                                st.button("Emitir ARCA", key=f"emit_arca_{f.get('id')}", use_container_width=True, disabled=True)
+                            else:
+                                status = validar_configuracion_arca(config)
+                                emitir_disabled = not status.listo
+                                if st.button("Emitir ARCA", key=f"emit_arca_{f.get('id')}", use_container_width=True, disabled=emitir_disabled):
+                                    with st.spinner("Solicitando CAE a ARCA..."):
+                                        resultado = emitir_factura_arca(f, config)
+                                    if resultado.get("ok"):
+                                        # Actualizar factura con CAE
+                                        updated = dict(f)
+                                        updated["cae"] = resultado["cae"]
+                                        updated["cae_vencimiento"] = resultado.get("cae_vencimiento")
+                                        updated["estado"] = "Autorizada"
+                                        updated["cae_mock"] = resultado.get("mock", False)
+                                        if upsert_factura_arca(updated):
+                                            registrar_auditoria(
+                                                empresa_id,
+                                                usuario,
+                                                "emitir_arca",
+                                                "factura_arca",
+                                                f.get("id", ""),
+                                                {"cae": resultado["cae"], "mock": resultado.get("mock", False)},
+                                            )
+                                            st.toast(f"CAE obtenido: {resultado['cae']}")
+                                            st.rerun()
+                                        else:
+                                            mostrar_error_db("guardar CAE en factura")
+                                    else:
+                                        st.error(resultado.get("mensaje", "Error al emitir a ARCA."))
                         with a3:
-                            if st.button("Eliminar", key=f"del_arca_{f.get('id')}", use_container_width=True):
+                            confirm = st.checkbox("Confirmar", key=f"confirm_del_arca_{f.get('id')}")
+                            if st.button("Eliminar", key=f"del_arca_{f.get('id')}", use_container_width=True, disabled=not confirm):
                                 if delete_factura_arca(f.get("id")):
                                     registrar_auditoria(empresa_id, usuario, "borrar", "factura_arca", f.get("id", ""))
                                     st.rerun()
