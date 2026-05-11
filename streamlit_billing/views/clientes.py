@@ -265,8 +265,18 @@ def render_clientes() -> None:
                                 monto_vencido = sum(money(p.get("saldo")) for p in vencidas)
                                 st.error(f"⚠️ {len(vencidas)} vencida(s): {fmt_moneda(monto_vencido)}")
 
-                        a1, a2, a3, a4 = st.columns([1.3, 1.1, 1.5, 1.1])
+                        a1, a2, a3, a4, a5, a6 = st.columns([1.2, 1.2, 1.2, 1.1, 1.5, 1.1])
                         with a1:
+                            if st.button("Presupuesto", key=f"pres_cli_{cliente_id}", use_container_width=True):
+                                st.session_state["borrador_presupuesto_new"] = {"cliente_nombre": cliente.get("nombre", "")}
+                                st.session_state["billing_modulo_activo"] = "Presupuestos"
+                                st.rerun()
+                        with a2:
+                            if st.button("Pre-factura", key=f"fac_cli_{cliente_id}", use_container_width=True):
+                                st.session_state["borrador_prefactura_new"] = {"cliente_nombre": cliente.get("nombre", "")}
+                                st.session_state["billing_modulo_activo"] = "Pre-facturas"
+                                st.rerun()
+                        with a3:
                             if st.button("Cuenta", key=f"cc_cli_{cliente_id}", use_container_width=True):
                                 st.session_state["cc_cliente_label"] = (
                                     f"{cliente.get('nombre', 'Sin nombre')} | {cliente.get('dni', '')}"
@@ -275,13 +285,13 @@ def render_clientes() -> None:
                                 )
                                 st.session_state["billing_modulo_activo"] = "Cuenta corriente"
                                 st.rerun()
-                        with a2:
+                        with a4:
                             if st.button("Editar", key=f"edit_cli_{cliente_id}", use_container_width=True):
                                 st.session_state["cli_editing"] = cliente_id
                                 st.rerun()
-                        with a3:
+                        with a5:
                             confirmar = st.checkbox("Confirmar borrado", key=f"confirm_del_cli_{cliente_id}")
-                        with a4:
+                        with a6:
                             if st.button("Eliminar", key=f"del_cli_{cliente_id}", use_container_width=True, disabled=not confirmar):
                                 if delete_cliente(cliente_id):
                                     st.toast("Cliente eliminado.")
