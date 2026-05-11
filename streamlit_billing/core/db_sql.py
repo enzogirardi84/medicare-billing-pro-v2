@@ -24,22 +24,25 @@ LOCAL_COLLECTIONS = {
 supabase = None
 last_db_error = ""
 _supabase_disabled = False
+
 try:
     from supabase import create_client, Client
     supabase_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY
     if SUPABASE_URL and supabase_key:
-        supabase: Client = create_client(SUPABASE_URL, supabase_key)
+        _client: Client = create_client(SUPABASE_URL, supabase_key)
         # Verificar conexion con health-check rapido
         try:
-            supabase.table("usuarios").select("count", count="exact").limit(1).execute()
+            _client.table("usuarios").select("count", count="exact").limit(1).execute()
+            supabase = _client
         except Exception as e:
             err_str = str(e).lower()
-            if "401" in err_str or "invalid api key" in err_str or "unauthorized" in err_str:
+            if any(k in err_str for k in ("401", "invalid api key", "unauthorized", "apierror")):
                 log_event("db", "supabase_clave_invalida_401_usando_modo_local")
                 supabase = None
                 _supabase_disabled = True
             else:
                 log_event("db", f"supabase_health_check_warn:{type(e).__name__}")
+                supabase = _client
 except ImportError:
     log_event("db", "supabase no disponible")
     _supabase_disabled = True
