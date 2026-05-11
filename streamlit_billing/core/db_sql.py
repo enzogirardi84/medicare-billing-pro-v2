@@ -23,15 +23,29 @@ LOCAL_COLLECTIONS = {
 
 supabase = None
 last_db_error = ""
+_supabase_disabled = False
 try:
     from supabase import create_client, Client
     supabase_key = SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY
     if SUPABASE_URL and supabase_key:
         supabase: Client = create_client(SUPABASE_URL, supabase_key)
+        # Verificar conexion con health-check rapido
+        try:
+            supabase.table("usuarios").select("count", count="exact").limit(1).execute()
+        except Exception as e:
+            err_str = str(e).lower()
+            if "401" in err_str or "invalid api key" in err_str or "unauthorized" in err_str:
+                log_event("db", "supabase_clave_invalida_401_usando_modo_local")
+                supabase = None
+                _supabase_disabled = True
+            else:
+                log_event("db", f"supabase_health_check_warn:{type(e).__name__}")
 except ImportError:
     log_event("db", "supabase no disponible")
+    _supabase_disabled = True
 except Exception as e:
     log_event("db", f"error_init_supabase:{type(e).__name__}:{e}")
+    _supabase_disabled = True
 
 
 def _supabase_execute_with_retry(op_name: str, fn, attempts: int = 3, base_delay: float = 0.35):
@@ -99,21 +113,21 @@ def _local_delete(collection: str, row_id: str) -> bool:
 
 
 def _fallback_get(collection: str, empresa_id: str) -> List[Dict[str, Any]]:
-    if ALLOW_LOCAL_FALLBACK:
+    if ALLOW_LOCAL_FALLBACK or _supabase_disabled:
         return _local_get(collection, empresa_id)
     log_event("db", f"supabase_required_get_blocked:{collection}")
     return []
 
 
 def _fallback_upsert(collection: str, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if ALLOW_LOCAL_FALLBACK:
+    if ALLOW_LOCAL_FALLBACK or _supabase_disabled:
         return _local_upsert(collection, row)
     log_event("db", f"supabase_required_upsert_blocked:{collection}")
     return None
 
 
 def _fallback_delete(collection: str, row_id: str) -> bool:
-    if ALLOW_LOCAL_FALLBACK:
+    if ALLOW_LOCAL_FALLBACK or _supabase_disabled:
         return _local_delete(collection, row_id)
     log_event("db", f"supabase_required_delete_blocked:{collection}:{row_id}")
     return False
