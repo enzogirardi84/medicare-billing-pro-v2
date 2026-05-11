@@ -51,6 +51,13 @@ except Exception as e:
     _supabase_disabled = True
 
 
+def _active_supabase():
+    """Devuelve el cliente supabase solo si no esta deshabilitado por 401."""
+    if _supabase_disabled:
+        return None
+    return supabase
+
+
 def _supabase_execute_with_retry(op_name: str, fn, attempts: int = 3, base_delay: float = 0.35):
     global last_db_error
     last_error = None
@@ -139,12 +146,13 @@ def _fallback_delete(collection: str, row_id: str) -> bool:
 # ── Clientes ───────────────────────────────────────────────
 
 def get_clientes(empresa_id: str) -> List[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_get("clientes", empresa_id)
     try:
         resp = _supabase_execute_with_retry(
             "get_clientes",
-            lambda: supabase.table("billing_clientes").select("*").eq("empresa_id", empresa_id).order("nombre").execute()
+            lambda: sb.table("billing_clientes").select("*").eq("empresa_id", empresa_id).order("nombre").execute()
         )
         return resp.data or []
     except Exception as e:
@@ -153,12 +161,13 @@ def get_clientes(empresa_id: str) -> List[Dict[str, Any]]:
 
 
 def upsert_cliente(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_upsert("clientes", data)
     try:
         resp = _supabase_execute_with_retry(
             "upsert_cliente",
-            lambda: supabase.table("billing_clientes").upsert(data).execute()
+            lambda: sb.table("billing_clientes").upsert(data).execute()
         )
         return resp.data[0] if resp.data else None
     except Exception as e:
@@ -167,12 +176,13 @@ def upsert_cliente(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def delete_cliente(cliente_id: str) -> bool:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_delete("clientes", cliente_id)
     try:
         _supabase_execute_with_retry(
             "delete_cliente",
-            lambda: supabase.table("billing_clientes").delete().eq("id", cliente_id).execute()
+            lambda: sb.table("billing_clientes").delete().eq("id", cliente_id).execute()
         )
         return True
     except Exception as e:
@@ -183,12 +193,13 @@ def delete_cliente(cliente_id: str) -> bool:
 # ── Presupuestos ───────────────────────────────────────────
 
 def get_presupuestos(empresa_id: str) -> List[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_get("presupuestos", empresa_id)
     try:
         resp = _supabase_execute_with_retry(
             "get_presupuestos",
-            lambda: supabase.table("billing_presupuestos").select("*").eq("empresa_id", empresa_id).order("created_at", desc=True).execute()
+            lambda: sb.table("billing_presupuestos").select("*").eq("empresa_id", empresa_id).order("created_at", desc=True).execute()
         )
         return resp.data or []
     except Exception as e:
@@ -197,12 +208,13 @@ def get_presupuestos(empresa_id: str) -> List[Dict[str, Any]]:
 
 
 def upsert_presupuesto(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_upsert("presupuestos", data)
     try:
         resp = _supabase_execute_with_retry(
             "upsert_presupuesto",
-            lambda: supabase.table("billing_presupuestos").upsert(data).execute()
+            lambda: sb.table("billing_presupuestos").upsert(data).execute()
         )
         return resp.data[0] if resp.data else None
     except Exception as e:
@@ -211,12 +223,13 @@ def upsert_presupuesto(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def delete_presupuesto(presupuesto_id: str) -> bool:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_delete("presupuestos", presupuesto_id)
     try:
         _supabase_execute_with_retry(
             "delete_presupuesto",
-            lambda: supabase.table("billing_presupuestos").delete().eq("id", presupuesto_id).execute()
+            lambda: sb.table("billing_presupuestos").delete().eq("id", presupuesto_id).execute()
         )
         return True
     except Exception as e:
@@ -227,12 +240,13 @@ def delete_presupuesto(presupuesto_id: str) -> bool:
 # ── Pre-facturas ───────────────────────────────────────────
 
 def get_prefacturas(empresa_id: str) -> List[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_get("prefacturas", empresa_id)
     try:
         resp = _supabase_execute_with_retry(
             "get_prefacturas",
-            lambda: supabase.table("billing_prefacturas").select("*").eq("empresa_id", empresa_id).order("created_at", desc=True).execute()
+            lambda: sb.table("billing_prefacturas").select("*").eq("empresa_id", empresa_id).order("created_at", desc=True).execute()
         )
         return resp.data or []
     except Exception as e:
@@ -241,12 +255,13 @@ def get_prefacturas(empresa_id: str) -> List[Dict[str, Any]]:
 
 
 def upsert_prefactura(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_upsert("prefacturas", data)
     try:
         resp = _supabase_execute_with_retry(
             "upsert_prefactura",
-            lambda: supabase.table("billing_prefacturas").upsert(data).execute()
+            lambda: sb.table("billing_prefacturas").upsert(data).execute()
         )
         return resp.data[0] if resp.data else None
     except Exception as e:
@@ -255,12 +270,13 @@ def upsert_prefactura(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def delete_prefactura(prefactura_id: str) -> bool:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_delete("prefacturas", prefactura_id)
     try:
         _supabase_execute_with_retry(
             "delete_prefactura",
-            lambda: supabase.table("billing_prefacturas").delete().eq("id", prefactura_id).execute()
+            lambda: sb.table("billing_prefacturas").delete().eq("id", prefactura_id).execute()
         )
         return True
     except Exception as e:
@@ -271,12 +287,13 @@ def delete_prefactura(prefactura_id: str) -> bool:
 # ── Cobros ─────────────────────────────────────────────────
 
 def get_cobros(empresa_id: str) -> List[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_get("cobros", empresa_id)
     try:
         resp = _supabase_execute_with_retry(
             "get_cobros",
-            lambda: supabase.table("billing_cobros").select("*").eq("empresa_id", empresa_id).order("fecha", desc=True).execute()
+            lambda: sb.table("billing_cobros").select("*").eq("empresa_id", empresa_id).order("fecha", desc=True).execute()
         )
         return resp.data or []
     except Exception as e:
@@ -285,12 +302,13 @@ def get_cobros(empresa_id: str) -> List[Dict[str, Any]]:
 
 
 def upsert_cobro(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_upsert("cobros", data)
     try:
         resp = _supabase_execute_with_retry(
             "upsert_cobro",
-            lambda: supabase.table("billing_cobros").upsert(data).execute()
+            lambda: sb.table("billing_cobros").upsert(data).execute()
         )
         return resp.data[0] if resp.data else None
     except Exception as e:
@@ -299,12 +317,13 @@ def upsert_cobro(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def delete_cobro(cobro_id: str) -> bool:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_delete("cobros", cobro_id)
     try:
         _supabase_execute_with_retry(
             "delete_cobro",
-            lambda: supabase.table("billing_cobros").delete().eq("id", cobro_id).execute()
+            lambda: sb.table("billing_cobros").delete().eq("id", cobro_id).execute()
         )
         return True
     except Exception as e:
@@ -315,13 +334,14 @@ def delete_cobro(cobro_id: str) -> bool:
 # ── Empresas ───────────────────────────────────────────────
 
 def get_config_fiscal(empresa_id: str) -> Dict[str, Any]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         rows = _fallback_get("config_fiscal", empresa_id)
         return rows[0] if rows else {}
     try:
         resp = _supabase_execute_with_retry(
             "get_config_fiscal",
-            lambda: supabase.table("billing_config_fiscal").select("*").eq("empresa_id", empresa_id).limit(1).execute(),
+            lambda: sb.table("billing_config_fiscal").select("*").eq("empresa_id", empresa_id).limit(1).execute(),
         )
         return resp.data[0] if resp.data else {}
     except Exception as e:
@@ -330,12 +350,13 @@ def get_config_fiscal(empresa_id: str) -> Dict[str, Any]:
 
 
 def upsert_config_fiscal(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_upsert("config_fiscal", data)
     try:
         resp = _supabase_execute_with_retry(
             "upsert_config_fiscal",
-            lambda: supabase.table("billing_config_fiscal").upsert(data).execute(),
+            lambda: sb.table("billing_config_fiscal").upsert(data).execute(),
         )
         return resp.data[0] if resp.data else None
     except Exception as e:
@@ -344,12 +365,13 @@ def upsert_config_fiscal(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def get_numeradores(empresa_id: str) -> List[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_get("numeradores", empresa_id)
     try:
         resp = _supabase_execute_with_retry(
             "get_numeradores",
-            lambda: supabase.table("billing_numeradores").select("*").eq("empresa_id", empresa_id).order("tipo").execute(),
+            lambda: sb.table("billing_numeradores").select("*").eq("empresa_id", empresa_id).order("tipo").execute(),
         )
         return resp.data or []
     except Exception as e:
@@ -358,12 +380,13 @@ def get_numeradores(empresa_id: str) -> List[Dict[str, Any]]:
 
 
 def upsert_numerador(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_upsert("numeradores", data)
     try:
         resp = _supabase_execute_with_retry(
             "upsert_numerador",
-            lambda: supabase.table("billing_numeradores").upsert(data).execute(),
+            lambda: sb.table("billing_numeradores").upsert(data).execute(),
         )
         return resp.data[0] if resp.data else None
     except Exception as e:
@@ -372,6 +395,9 @@ def upsert_numerador(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def generar_numero_formal(empresa_id: str, tipo: str, punto_venta: int = 1, prefijo: str = "") -> str:
+    sb = _active_supabase()
+    if not sb:
+        return ""
     actual = next(
         (n for n in get_numeradores(empresa_id) if n.get("tipo") == tipo and int(n.get("punto_venta", 1) or 1) == int(punto_venta)),
         None,
@@ -391,12 +417,13 @@ def generar_numero_formal(empresa_id: str, tipo: str, punto_venta: int = 1, pref
 
 
 def get_facturas_arca(empresa_id: str) -> List[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_get("facturas_arca", empresa_id)
     try:
         resp = _supabase_execute_with_retry(
             "get_facturas_arca",
-            lambda: supabase.table("billing_facturas_arca").select("*").eq("empresa_id", empresa_id).order("created_at", desc=True).execute(),
+            lambda: sb.table("billing_facturas_arca").select("*").eq("empresa_id", empresa_id).order("created_at", desc=True).execute(),
         )
         return resp.data or []
     except Exception as e:
@@ -405,12 +432,13 @@ def get_facturas_arca(empresa_id: str) -> List[Dict[str, Any]]:
 
 
 def upsert_factura_arca(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_upsert("facturas_arca", data)
     try:
         resp = _supabase_execute_with_retry(
             "upsert_factura_arca",
-            lambda: supabase.table("billing_facturas_arca").upsert(data).execute(),
+            lambda: sb.table("billing_facturas_arca").upsert(data).execute(),
         )
         return resp.data[0] if resp.data else None
     except Exception as e:
@@ -419,12 +447,13 @@ def upsert_factura_arca(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def delete_factura_arca(factura_id: str) -> bool:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_delete("facturas_arca", factura_id)
     try:
         _supabase_execute_with_retry(
             "delete_factura_arca",
-            lambda: supabase.table("billing_facturas_arca").delete().eq("id", factura_id).execute(),
+            lambda: sb.table("billing_facturas_arca").delete().eq("id", factura_id).execute(),
         )
         return True
     except Exception as e:
@@ -442,22 +471,24 @@ def registrar_auditoria(empresa_id: str, usuario: str, accion: str, entidad: str
         "entidad_id": entidad_id,
         "detalle": detalle or {},
     }
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         _fallback_upsert("auditoria", row)
         return
     try:
-        _supabase_execute_with_retry("registrar_auditoria", lambda: supabase.table("billing_auditoria").insert(row).execute())
+        _supabase_execute_with_retry("registrar_auditoria", lambda: sb.table("billing_auditoria").insert(row).execute())
     except Exception as e:
         log_event("db", f"registrar_auditoria_error:{e}")
 
 
 def get_auditoria(empresa_id: str, limit: int = 100) -> List[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return _fallback_get("auditoria", empresa_id)
     try:
         resp = _supabase_execute_with_retry(
             "get_auditoria",
-            lambda: supabase.table("billing_auditoria").select("*").eq("empresa_id", empresa_id).order("created_at", desc=True).limit(limit).execute(),
+            lambda: sb.table("billing_auditoria").select("*").eq("empresa_id", empresa_id).order("created_at", desc=True).limit(limit).execute(),
         )
         return resp.data or []
     except Exception as e:
@@ -466,12 +497,13 @@ def get_auditoria(empresa_id: str, limit: int = 100) -> List[Dict[str, Any]]:
 
 
 def get_empresas() -> List[Dict[str, Any]]:
-    if not supabase:
+    sb = _active_supabase()
+    if not sb:
         return []
     try:
         resp = _supabase_execute_with_retry(
             "get_empresas",
-            lambda: supabase.table("empresas").select("id,nombre").order("nombre").execute()
+            lambda: sb.table("empresas").select("id,nombre").order("nombre").execute()
         )
         return resp.data or []
     except Exception as e:
