@@ -52,20 +52,31 @@ def _pdf_bytes(pdf: "BillingPDF") -> bytes:
 def _header(pdf: "BillingPDF", titulo: str, empresa: str, subtitulo: str = "") -> None:
     page_w = pdf.w
     pdf.set_fill_color(*BLUE)
-    pdf.rect(0, 0, page_w, 27, "F")
+    pdf.rect(0, 0, page_w, 31, "F")
     pdf.set_fill_color(*TEAL)
-    pdf.rect(0, 27, page_w, 1.2, "F")
+    pdf.rect(0, 31, page_w, 1.2, "F")
+    pdf.set_fill_color(255, 255, 255)
+    pdf.rect(14, 7, 18, 17, "F")
+    pdf.set_xy(16, 10)
+    pdf.set_font("Arial", "B", 10)
+    pdf.set_text_color(*BLUE)
+    pdf.cell(14, 5, "MBP", align="C")
     pdf.set_xy(14, 7)
+    pdf.set_x(38)
     pdf.set_font("Arial", "B", 15)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 7, safe_text(titulo), ln=True)
-    pdf.set_x(14)
+    pdf.set_x(38)
     pdf.set_font("Arial", "", 8)
     line = f"{empresa} | Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     if subtitulo:
         line = f"{line} | {subtitulo}"
     pdf.cell(0, 5, safe_text(line), ln=True)
-    pdf.set_y(36)
+    pdf.set_xy(page_w - pdf.r_margin - 44, 8)
+    pdf.set_font("Arial", "B", 8)
+    pdf.set_text_color(206, 251, 246)
+    pdf.cell(44, 6, "Medicare Billing Pro", align="R")
+    pdf.set_y(40)
     pdf.set_text_color(*INK)
 
 
@@ -98,6 +109,8 @@ def _info_grid(pdf: "BillingPDF", pairs: Sequence[tuple[str, Any]], cols: int = 
 
 
 def _table_header(pdf: "BillingPDF", headers: Sequence[str], widths: Sequence[float]) -> None:
+    if pdf.get_y() + 8 > pdf.page_break_trigger:
+        pdf.add_page()
     pdf.set_fill_color(*BLUE_2)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 8)
@@ -107,12 +120,44 @@ def _table_header(pdf: "BillingPDF", headers: Sequence[str], widths: Sequence[fl
     pdf.set_text_color(*INK)
 
 
+def _wrapped_line_count(pdf: "BillingPDF", text: str, width: float) -> int:
+    words = safe_text(text or "-").split()
+    if not words:
+        return 1
+    lines = 1
+    current = ""
+    max_width = max(width - 3, 6)
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if pdf.get_string_width(candidate) <= max_width:
+            current = candidate
+        else:
+            lines += 1
+            current = word
+    return max(lines, 1)
+
+
 def _table_row(pdf: "BillingPDF", values: Sequence[Any], widths: Sequence[float], aligns: Sequence[str], fill: bool = False) -> None:
     pdf.set_fill_color(*SOFT)
     pdf.set_font("Arial", "", 8)
+    texts = [safe_text(str(value or "-")) for value in values]
+    line_counts = [_wrapped_line_count(pdf, text, width) for text, width in zip(texts, widths)]
+    row_h = max(6, max(line_counts or [1]) * 4.2 + 2)
+    if pdf.get_y() + row_h > pdf.page_break_trigger:
+        pdf.add_page()
+    start_x = pdf.get_x()
+    start_y = pdf.get_y()
     for value, width, align in zip(values, widths, aligns):
-        pdf.cell(width, 6, safe_text(str(value or "-"))[:42], border=1, align=align, fill=fill)
-    pdf.ln()
+        text = safe_text(str(value or "-"))
+        x = pdf.get_x()
+        y = pdf.get_y()
+        if fill:
+            pdf.rect(x, y, width, row_h, "F")
+        pdf.rect(x, y, width, row_h)
+        pdf.set_xy(x + 1.2, y + 1.2)
+        pdf.multi_cell(width - 2.4, 4.2, text, border=0, align=align)
+        pdf.set_xy(x + width, y)
+    pdf.set_xy(start_x, start_y + row_h)
 
 
 def _total_box(pdf: "BillingPDF", label: str, value: float) -> None:

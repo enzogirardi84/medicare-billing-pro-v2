@@ -10,6 +10,7 @@ from core.utils import fmt_fecha
 XLSX_DISPONIBLE = False
 try:
     from openpyxl import Workbook
+    from openpyxl.chart import BarChart, Reference
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -19,12 +20,14 @@ except ImportError:
     pass
 
 BRAND = "1F6FEB"
+TEAL = "14B8A6"
 INK = "0F172A"
 MUTED = "64748B"
 HEADER = "0F172A"
 HEADER_2 = "E2E8F0"
 TOTAL_FILL = "DCFCE7"
 ALT_FILL = "F8FAFC"
+PANEL_FILL = "EFF6FF"
 MONEY_FORMAT = '"$"#,##0.00'
 DATE_FORMAT = "DD/MM/YYYY"
 
@@ -44,8 +47,13 @@ def _safe_sheet_name(name: str) -> str:
 
 def _write_title(ws, title: str, empresa: str, subtitle: str = "") -> int:
     ws.sheet_view.showGridLines = False
+    ws.sheet_properties.tabColor = BRAND
+    ws.freeze_panes = "A5"
     ws["A1"] = title
-    ws["A1"].font = Font(name="Aptos Display", size=16, bold=True, color=INK)
+    ws["A1"].font = Font(name="Aptos Display", size=18, bold=True, color="FFFFFF")
+    ws["A1"].fill = PatternFill(start_color=HEADER, end_color=HEADER, fill_type="solid")
+    ws["A1"].alignment = Alignment(vertical="center")
+    ws.row_dimensions[1].height = 28
     ws["A2"] = f"{empresa} | Generado {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     ws["A2"].font = Font(name="Aptos", size=9, color=MUTED)
     if subtitle:
@@ -86,6 +94,7 @@ def _append_rows(ws, headers: Sequence[str], rows: Iterable[Sequence[Any]], star
             cell.alignment = Alignment(vertical="top", wrap_text=True)
             if row_idx % 2 == 0:
                 cell.fill = PatternFill(start_color=ALT_FILL, end_color=ALT_FILL, fill_type="solid")
+        ws.row_dimensions[row_idx].height = 22
         row_idx += 1
     return row_idx - 1
 
@@ -128,6 +137,54 @@ def _auto_width(ws, min_width: int = 11, max_width: int = 44) -> None:
         ws.column_dimensions[col_letter].width = max(min_width, min(max_len + 2, max_width))
 
 
+def _merge_title(ws, last_col: int) -> None:
+    if last_col > 1:
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=last_col)
+
+
+def _format_status_cols(ws, columns: Sequence[int], first_row: int, last_row: int) -> None:
+    fills = {
+        "borrador": "E2E8F0",
+        "pendiente": "FEF3C7",
+        "parcial": "DBEAFE",
+        "cobrada": "DCFCE7",
+        "cobrado": "DCFCE7",
+        "aceptado": "DCFCE7",
+        "autorizada": "DCFCE7",
+        "rechazado": "FEE2E2",
+        "anulada": "FEE2E2",
+        "vencido": "FEE2E2",
+        "observada": "FFEDD5",
+    }
+    for col in columns:
+        for row in range(first_row, last_row + 1):
+            cell = ws.cell(row=row, column=col)
+            key = str(cell.value or "").strip().lower()
+            if key in fills:
+                cell.fill = PatternFill(start_color=fills[key], end_color=fills[key], fill_type="solid")
+                cell.font = Font(name="Aptos", bold=True, color=INK)
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+
+def _summary_cards(ws, cards: Sequence[tuple[str, Any]], start_row: int = 4) -> int:
+    border = _thin_border()
+    for idx, (label, value) in enumerate(cards):
+        col = 1 + idx * 2
+        ws.cell(start_row, col, label)
+        ws.cell(start_row + 1, col, value)
+        ws.merge_cells(start_row=start_row, start_column=col, end_row=start_row, end_column=col + 1)
+        ws.merge_cells(start_row=start_row + 1, start_column=col, end_row=start_row + 1, end_column=col + 1)
+        for row in (start_row, start_row + 1):
+            for c in (col, col + 1):
+                cell = ws.cell(row=row, column=c)
+                cell.fill = PatternFill(start_color=PANEL_FILL if row == start_row else "FFFFFF", end_color=PANEL_FILL if row == start_row else "FFFFFF", fill_type="solid")
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.cell(start_row, col).font = Font(name="Aptos", size=9, bold=True, color=MUTED)
+        ws.cell(start_row + 1, col).font = Font(name="Aptos Display", size=14, bold=True, color=INK)
+    return start_row + 3
+
+
 def _finish(wb: "Workbook") -> bytes:
     output = BytesIO()
     wb.save(output)
@@ -143,6 +200,34 @@ def _total_row(ws, row: int, label_col: int, value_col: int, label: str, value: 
         cell.fill = PatternFill(start_color=TOTAL_FILL, end_color=TOTAL_FILL, fill_type="solid")
         cell.border = _thin_border()
     ws.cell(row=row, column=value_col).number_format = MONEY_FORMAT
+
+
+def _add_items_sheet(wb: "Workbook", sheet_name: str, title: str, empresa: str, documents: List[Dict], table_name: str) -> None:
+    ws = wb.create_sheet(_safe_sheet_name(sheet_name))
+    header = _write_title(ws, title, empresa)
+    headers = ["Documento", "Fecha", "Cliente", "Concepto", "Cantidad", "Precio unitario", "Subtotal"]
+    rows = []
+    for doc in documents:
+        for item in doc.get("items", []) or []:
+            cantidad = float(item.get("cantidad", 1) or 1)
+            precio = float(item.get("precio_unitario", 0) or 0)
+            rows.append(
+                [
+                    doc.get("numero", ""),
+                    fmt_fecha(doc.get("fecha", "")),
+                    doc.get("cliente_nombre", ""),
+                    item.get("concepto", ""),
+                    cantidad,
+                    precio,
+                    cantidad * precio,
+                ]
+            )
+    last = _append_rows(ws, headers, rows, header)
+    _merge_title(ws, len(headers))
+    if last >= header + 1:
+        _format_money_cols(ws, [6, 7], header + 1, last)
+    _add_table(ws, table_name, header, last, len(headers))
+    _auto_width(ws)
 
 
 def exportar_clientes_excel(clientes: List[Dict], empresa: str) -> bytes:
@@ -166,6 +251,9 @@ def exportar_clientes_excel(clientes: List[Dict], empresa: str) -> bytes:
         for c in clientes
     ]
     last = _append_rows(ws, headers, rows, header_row)
+    _merge_title(ws, len(headers))
+    if last >= header_row + 1:
+        _format_status_cols(ws, [6], header_row + 1, last)
     _add_table(ws, "tbl_clientes", header_row, last, len(headers))
     _auto_width(ws)
     return _finish(wb)
@@ -193,8 +281,10 @@ def exportar_cobros_excel(cobros: List[Dict], empresa: str) -> bytes:
         for c in cobros
     ]
     last = _append_rows(ws, headers, rows, header_row)
+    _merge_title(ws, len(headers))
     if last >= header_row + 1:
         _format_money_cols(ws, [5], header_row + 1, last)
+        _format_status_cols(ws, [6], header_row + 1, last)
         _total_row(ws, last + 2, 4, 5, "Total cobrado", total)
     _add_table(ws, "tbl_cobros", header_row, last, len(headers))
     _auto_width(ws)
@@ -233,6 +323,7 @@ def exportar_estado_cuenta_excel(
         for m in movimientos
     ]
     last = _append_rows(ws, headers, rows, header_row)
+    _merge_title(ws, len(headers))
     if last >= header_row + 1:
         _format_money_cols(ws, [5, 6, 7], header_row + 1, last)
         _total_row(ws, last + 2, 4, 5, "Debe", total_debe)
@@ -265,11 +356,14 @@ def exportar_presupuestos_excel(presupuestos: List[Dict], empresa: str) -> bytes
         for p in presupuestos
     ]
     last = _append_rows(ws, headers, rows, header_row)
+    _merge_title(ws, len(headers))
     if last >= header_row + 1:
         _format_money_cols(ws, [4], header_row + 1, last)
+        _format_status_cols(ws, [5], header_row + 1, last)
         _total_row(ws, last + 2, 3, 4, "Total presupuestado", total)
     _add_table(ws, "tbl_presupuestos", header_row, last, len(headers))
     _auto_width(ws)
+    _add_items_sheet(wb, "Detalle conceptos", "Detalle conceptos de presupuestos", empresa, presupuestos, "tbl_pres_items")
     return _finish(wb)
 
 
@@ -297,12 +391,15 @@ def exportar_prefacturas_excel(prefacturas: List[Dict], empresa: str) -> bytes:
         for p in prefacturas
     ]
     last = _append_rows(ws, headers, rows, header_row)
+    _merge_title(ws, len(headers))
     if last >= header_row + 1:
         _format_money_cols(ws, [5, 6, 7], header_row + 1, last)
+        _format_status_cols(ws, [8], header_row + 1, last)
         _total_row(ws, last + 2, 4, 5, "Total pre-facturado", total)
         _total_row(ws, last + 3, 6, 7, "Saldo pendiente", sum(float(p.get("saldo", p.get("total", 0)) or 0) for p in prefacturas))
     _add_table(ws, "tbl_prefacturas", header_row, last, len(headers))
     _auto_width(ws)
+    _add_items_sheet(wb, "Detalle conceptos", "Detalle conceptos de pre-facturas", empresa, prefacturas, "tbl_pref_items")
     return _finish(wb)
 
 
@@ -312,6 +409,16 @@ def _summary_sheet(ws, empresa: str, mes: str, presupuestos: List[Dict], prefact
     total_cobrado = sum(float(c.get("monto", 0) or 0) for c in cobros)
     pendiente = total_facturado - total_cobrado
     row = _write_title(ws, f"Reporte contable - {mes}", empresa)
+    row = _summary_cards(
+        ws,
+        [
+            ("Presupuestado", total_presupuestado),
+            ("Pre-facturado", total_facturado),
+            ("Cobrado", total_cobrado),
+            ("Pendiente", pendiente),
+        ],
+        start_row=row,
+    )
     headers = ["Indicador", "Monto", "Cantidad"]
     rows = [
         ["Presupuestado", total_presupuestado, len(presupuestos)],
@@ -320,9 +427,23 @@ def _summary_sheet(ws, empresa: str, mes: str, presupuestos: List[Dict], prefact
         ["Pendiente", pendiente, ""],
     ]
     last = _append_rows(ws, headers, rows, row)
+    _merge_title(ws, 8)
     _format_money_cols(ws, [2], row + 1, last)
     for r in range(row + 1, last + 1):
         ws.cell(r, 1).font = Font(name="Aptos", bold=True, color=INK)
+    chart = BarChart()
+    chart.type = "bar"
+    chart.style = 10
+    chart.title = "Resumen mensual"
+    chart.y_axis.title = "Indicador"
+    chart.x_axis.title = "Monto"
+    data = Reference(ws, min_col=2, min_row=row, max_row=last)
+    cats = Reference(ws, min_col=1, min_row=row + 1, max_row=last)
+    chart.add_data(data, titles_from_data=True)
+    chart.set_categories(cats)
+    chart.height = 6
+    chart.width = 11
+    ws.add_chart(chart, "E8")
     _auto_width(ws)
 
 
@@ -370,8 +491,10 @@ def exportar_facturas_arca_excel(facturas: List[Dict], empresa: str) -> bytes:
         for f in facturas
     ]
     last = _append_rows(ws, headers, rows, header_row)
+    _merge_title(ws, len(headers))
     if last >= header_row + 1:
         _format_money_cols(ws, [8, 9, 10], header_row + 1, last)
+        _format_status_cols(ws, [11], header_row + 1, last)
         _total_row(ws, last + 2, 7, 8, "Neto", sum(float(f.get("neto", 0) or 0) for f in facturas))
         _total_row(ws, last + 3, 8, 9, "IVA", sum(float(f.get("iva", 0) or 0) for f in facturas))
         _total_row(ws, last + 4, 9, 10, "Total", total)
@@ -387,6 +510,7 @@ def exportar_facturas_arca_excel(facturas: List[Dict], empresa: str) -> bytes:
             precio = float(item.get("precio_unitario", 0) or 0)
             detail_rows.append([f.get("numero", ""), fmt_fecha(f.get("fecha", "")), f.get("cliente_nombre", ""), item.get("concepto", ""), cantidad, precio, cantidad * precio])
     detail_last = _append_rows(ws2, detail_headers, detail_rows, detail_header)
+    _merge_title(ws2, len(detail_headers))
     if detail_last >= detail_header + 1:
         _format_money_cols(ws2, [6, 7], detail_header + 1, detail_last)
     _add_table(ws2, "tbl_facturas_arca_items", detail_header, detail_last, len(detail_headers))
@@ -416,8 +540,10 @@ def exportar_reporte_contable_excel(
         for c in cobros
     ]
     last = _append_rows(ws2, ["Fecha", "Cliente", "Concepto", "Metodo", "Monto", "Estado"], rows, header)
+    _merge_title(ws2, 6)
     if last >= header + 1:
         _format_money_cols(ws2, [5], header + 1, last)
+        _format_status_cols(ws2, [6], header + 1, last)
     _add_table(ws2, "tbl_rep_cobros", header, last, 6)
     _auto_width(ws2)
 
@@ -436,8 +562,10 @@ def exportar_reporte_contable_excel(
         for p in prefacturas
     ]
     last = _append_rows(ws3, ["Numero", "Fecha", "Cliente", "Total", "Cobrado", "Saldo", "Estado"], rows, header)
+    _merge_title(ws3, 7)
     if last >= header + 1:
         _format_money_cols(ws3, [4, 5, 6], header + 1, last)
+        _format_status_cols(ws3, [7], header + 1, last)
     _add_table(ws3, "tbl_rep_prefacturas", header, last, 7)
     _auto_width(ws3)
 
@@ -448,8 +576,10 @@ def exportar_reporte_contable_excel(
         for p in presupuestos
     ]
     last = _append_rows(ws4, ["Numero", "Fecha", "Cliente", "Total", "Estado"], rows, header)
+    _merge_title(ws4, 5)
     if last >= header + 1:
         _format_money_cols(ws4, [4], header + 1, last)
+        _format_status_cols(ws4, [5], header + 1, last)
     _add_table(ws4, "tbl_rep_presupuestos", header, last, 5)
     _auto_width(ws4)
 
