@@ -11,6 +11,7 @@ from core.billing_logic import enriquecer_prefacturas_con_saldo, money
 from core.utils import (
     bloque_estado_vacio,
     fmt_moneda,
+    fmt_moneda_corto,
     generar_id,
     is_valid_email,
     mostrar_error_db,
@@ -166,10 +167,14 @@ def render_clientes() -> None:
                             cli_cobros = [c for c in cobros if str(c.get("cliente_id", "")) == str(cliente_id)]
                             with st.expander("Historial y saldo", expanded=False):
                                 h1, h2, h3, h4 = st.columns(4)
-                                h1.metric("Presupuestado", fmt_moneda(sum(money(p.get("total")) for p in cli_pres)))
-                                h2.metric("Pre-facturado", fmt_moneda(sum(money(p.get("total")) for p in cli_pref)))
-                                h3.metric("Cobrado", fmt_moneda(sum(money(c.get("monto")) for c in cli_cobros)))
-                                h4.metric("Saldo", fmt_moneda(sum(money(p.get("saldo")) for p in cli_pref)))
+                                pres_total = sum(money(p.get("total")) for p in cli_pres)
+                                pref_total = sum(money(p.get("total")) for p in cli_pref)
+                                cob_total = sum(money(c.get("monto")) for c in cli_cobros)
+                                saldo_total = sum(money(p.get("saldo")) for p in cli_pref)
+                                h1.metric("Presupuestado", fmt_moneda_corto(pres_total), help=fmt_moneda(pres_total))
+                                h2.metric("Pre-facturado", fmt_moneda_corto(pref_total), help=fmt_moneda(pref_total))
+                                h3.metric("Cobrado", fmt_moneda_corto(cob_total), help=fmt_moneda(cob_total))
+                                h4.metric("Saldo", fmt_moneda_corto(saldo_total), help=fmt_moneda(saldo_total))
                                 ultimos = sorted(
                                     [
                                         {"Fecha": p.get("fecha", ""), "Tipo": "Presupuesto", "Numero": p.get("numero", ""), "Monto": fmt_moneda(p.get("total", 0))}

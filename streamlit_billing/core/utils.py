@@ -30,6 +30,21 @@ def fmt_moneda(monto: float | int | str | None) -> str:
     return f"${value:,.2f}"
 
 
+def fmt_moneda_corto(monto: float | int | str | None) -> str:
+    """Formato compacto para métricas pequeñas (evita corte)."""
+    try:
+        value = float(monto or 0)
+    except Exception:
+        value = 0.0
+    if abs(value) >= 1_000_000_000:
+        return f"${value / 1_000_000_000:.1f}B"
+    if abs(value) >= 1_000_000:
+        return f"${value / 1_000_000:.1f}M"
+    if abs(value) >= 1_000:
+        return f"${value / 1_000:.0f}k"
+    return f"${value:,.0f}"
+
+
 def fmt_fecha(fecha_str: str) -> str:
     if not fecha_str:
         return "-"
