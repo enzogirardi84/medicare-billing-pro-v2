@@ -72,13 +72,15 @@ def _movimientos_cliente(
     for factura in facturas_arca:
         if str(factura.get("cliente_id", "")) != str(cliente_id):
             continue
+        estado = str(factura.get("estado", "")).strip().lower()
+        es_autorizada = estado == "autorizada"
         rows.append(
             {
                 "fecha": factura.get("fecha", ""),
                 "tipo": "Factura ARCA",
                 "numero": factura.get("numero", ""),
                 "detalle": f"{factura.get('tipo_comprobante', '')} | {factura.get('estado', '')} | CAE {factura.get('cae') or 'pendiente'}",
-                "debe": 0.0,
+                "debe": money(factura.get("total")) if es_autorizada else 0.0,
                 "haber": 0.0,
                 "orden": 3,
             }

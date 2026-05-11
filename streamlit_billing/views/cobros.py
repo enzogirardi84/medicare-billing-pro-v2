@@ -280,9 +280,9 @@ def render_cobros() -> None:
                                         if upsert_cobro(updated):
                                             if updated.get("prefactura_id") and not _sync_prefactura(updated.get("prefactura_id", "")):
                                                 mostrar_error_db("recalcular la pre-factura vinculada")
-                                                return
-                                            st.toast("Estado actualizado.")
-                                            st.rerun()
+                                            else:
+                                                st.toast("Estado actualizado.")
+                                                st.rerun()
                                         else:
                                             mostrar_error_db("actualizar el cobro")
                                 a1, a2, a3 = st.columns([1.25, 1.5, 1.1])
