@@ -46,11 +46,19 @@ def _form_factura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | No
     form_id = existing.get("id", "new") if existing else "new"
     item_count = st.number_input("Cantidad de conceptos", min_value=1, max_value=30, value=max(1, len(base_items) or 1), key=f"arca_count_{form_id}")
 
+    # Preview de numero sugerido
+    tipo_num = {"A": "FACA", "B": "FACB", "C": "FACC"}.get(
+        (existing or {}).get("tipo_comprobante", "C"), "FACC"
+    )
+    pv_sug = int((existing or {}).get("punto_venta", config.get("punto_venta", 1)) or 1)
+    numero_sugerido = existing.get("numero") if existing else generar_numero_formal(empresa_id, tipo_num, pv_sug, tipo_num)
+
     with st.form(f"arca_form_{form_id}", border=True):
         st.markdown(f"### {'Editar' if existing else 'Nueva'} factura ARCA")
+        st.caption(f"Numero sugerido: **{numero_sugerido}** (se asigna automaticamente al guardar)")
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            punto_venta = st.number_input("Punto de venta", min_value=1, max_value=99999, value=int((existing or {}).get("punto_venta", config.get("punto_venta", 1)) or 1))
+            punto_venta = st.number_input("Punto de venta", min_value=1, max_value=99999, value=pv_sug)
         with c2:
             tipo = st.selectbox("Tipo", TIPOS, index=TIPOS.index((existing or {}).get("tipo_comprobante", "C")) if (existing or {}).get("tipo_comprobante") in TIPOS else 2)
         with c3:
@@ -68,15 +76,28 @@ def _form_factura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] | No
         iva_incluido = st.checkbox("Factura A con IVA 21% incluido en el precio", value=bool(existing and money(existing.get("iva")) > 0))
         items: List[Dict[str, Any]] = []
         st.markdown("#### Conceptos")
+        # Headers
+        h1, h2, h3, h4 = st.columns([3.2, 1, 1.3, 1.5])
+        with h1:
+            st.markdown("**Concepto**")
+        with h2:
+            st.markdown("**Cant.**")
+        with h3:
+            st.markdown("**Precio $**")
+        with h4:
+            st.markdown("**Subtotal**")
         for i in range(int(item_count)):
             item = base_items[i] if i < len(base_items) and isinstance(base_items[i], dict) else {"concepto": "", "cantidad": 1, "precio_unitario": 0}
-            ic1, ic2, ic3 = st.columns([3, 1, 1.2])
+            ic1, ic2, ic3, ic4 = st.columns([3.2, 1, 1.3, 1.5])
             with ic1:
-                concepto = st.text_input("Concepto", value=item.get("concepto", ""), key=f"arca_con_{form_id}_{i}", label_visibility="collapsed" if i else "visible")
+                concepto = st.text_input("Concepto", value=item.get("concepto", ""), key=f"arca_con_{form_id}_{i}", label_visibility="collapsed")
             with ic2:
-                cantidad = st.number_input("Cant.", min_value=1, value=int(item.get("cantidad", 1) or 1), key=f"arca_can_{form_id}_{i}", label_visibility="collapsed" if i else "visible")
+                cantidad = st.number_input("Cant.", min_value=1, value=int(item.get("cantidad", 1) or 1), key=f"arca_can_{form_id}_{i}", label_visibility="collapsed")
             with ic3:
-                precio = st.number_input("Precio $", min_value=0.0, value=float(item.get("precio_unitario", 0) or 0), step=100.0, key=f"arca_pre_{form_id}_{i}", label_visibility="collapsed" if i else "visible")
+                precio = st.number_input("Precio $", min_value=0.0, value=float(item.get("precio_unitario", 0) or 0), step=100.0, key=f"arca_pre_{form_id}_{i}", label_visibility="collapsed")
+            with ic4:
+                sub = cantidad * precio
+                st.markdown(f"<p style='margin-top:.6rem'>${sub:,.2f}</p>", unsafe_allow_html=True)
             if concepto.strip():
                 items.append({"concepto": concepto.strip(), "cantidad": cantidad, "precio_unitario": precio})
 

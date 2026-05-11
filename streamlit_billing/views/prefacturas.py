@@ -69,22 +69,33 @@ def _form_prefactura(existing: Dict[str, Any] | None = None) -> Dict[str, Any] |
             fecha = st.date_input("Fecha", value=_parse_date(existing.get("fecha") if existing else borrador.get("fecha", ""), date.today()))
 
         st.markdown("#### Conceptos")
+        # Headers
+        h1, h2, h3, h4 = st.columns([3.2, 1, 1.3, 1.5])
+        with h1:
+            st.markdown("**Concepto**")
+        with h2:
+            st.markdown("**Cant.**")
+        with h3:
+            st.markdown("**Precio $**")
+        with h4:
+            st.markdown("**Subtotal**")
         items = []
         for i in range(int(item_count)):
-            ic1, ic2, ic3, ic4 = st.columns([3, 1, 1.2, 0.7])
+            ic1, ic2, ic3, ic4 = st.columns([3.2, 1, 1.3, 1.5])
             with ic1:
                 concepto = st.text_input(
                     "Concepto",
                     key=f"fac_conc_{form_id}_{i}",
                     placeholder="Ej: Honorarios medicos marzo",
-                    label_visibility="collapsed" if i > 0 else "visible",
+                    label_visibility="collapsed",
                 )
             with ic2:
-                cantidad = st.number_input("Cant.", min_value=1.0, step=1.0, key=f"fac_cant_{form_id}_{i}", label_visibility="collapsed" if i > 0 else "visible")
+                cantidad = st.number_input("Cant.", min_value=1.0, step=1.0, key=f"fac_cant_{form_id}_{i}", label_visibility="collapsed")
             with ic3:
-                precio = st.number_input("Precio $", min_value=0.0, step=100.0, key=f"fac_precio_{form_id}_{i}", label_visibility="collapsed" if i > 0 else "visible")
+                precio = st.number_input("Precio $", min_value=0.0, step=100.0, key=f"fac_precio_{form_id}_{i}", label_visibility="collapsed")
             with ic4:
-                st.caption(fmt_moneda(cantidad * precio))
+                sub = cantidad * precio
+                st.markdown(f"<p style='margin-top:.6rem'>{fmt_moneda(sub)}</p>", unsafe_allow_html=True)
             if concepto.strip():
                 items.append({"concepto": concepto.strip(), "cantidad": cantidad, "precio_unitario": precio})
 
